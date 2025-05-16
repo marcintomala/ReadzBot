@@ -25,7 +25,7 @@ async def on_ready():
     print(f"{bot.user} has connected.")
     
         # Replace with your channel ID
-    channel_id = os.getenv("CHANNEL")
+    channel_id = int(os.getenv("CHANNEL"))
     channel = bot.get_channel(channel_id)
 
     if channel:
