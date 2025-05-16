@@ -1,0 +1,8 @@
+discord.py==2.3.2
+feedparser==6.0.10
+requests==2.31.0
+python-dotenv==1.0.1
+apscheduler==3.10.4
+aiohttp==3.9.3
+legacy-cgi==2.6.3
+audioop-lts==0.2.1
