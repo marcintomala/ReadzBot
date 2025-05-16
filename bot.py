@@ -4,7 +4,6 @@ import re
 import feedparser as fp
 import audioop
 import aiohttp
-import asyncio
 import logging
 import discord
 from discord import User, ClientUser, Invite, Template
@@ -22,15 +21,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
+    guild = discord.Object(id=int(os.getenv("SERVER_ID")))
+    await bot.tree.sync(guild=guild)
+    for cmd in bot.tree.get_commands():
+        print(f"Registered command: {cmd.name}")
     print(f"{bot.user} has connected.")
+        
+async def load_extensions():
+    await bot.load_extension("cogs.user_commands")
     
-        # Replace with your channel ID
-    channel_id = int(os.getenv("CHANNEL"))
-    channel = bot.get_channel(channel_id)
-
-    if channel:
-        await channel.send("Hello from the bot!")
-    else:
-        print("Channel not found or bot lacks access.")
-
-bot.run(TOKEN)
+if __name__ == "__main__":
+    import asyncio
+    async def main():
+        await load_extensions()
+        await bot.start(TOKEN)
+    asyncio.run(main())
