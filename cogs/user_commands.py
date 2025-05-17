@@ -67,7 +67,7 @@ class UserCommands(commands.Cog):
                 return
             
     @app_commands.command(name="updatereadz", description="Update feeds")
-    async def update_readz(self, interaction: discord.Interaction):
+    async def updatereadz(self, interaction: discord.Interaction):
         logging.info(f"Updating feeds for user: {interaction.user.name}")
         try:
             await process(server_id=interaction.guild.id)

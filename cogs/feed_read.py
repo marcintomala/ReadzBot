@@ -11,37 +11,62 @@ async def read_feed(goodreads_user_id):
     # Fetch the RSS feed from Goodreads and parse it - filtering out custom shelves
     RSS_URL = f'https://www.goodreads.com/review/list_rss/{goodreads_user_id}?shelf=all'
     feed = fp.parse(RSS_URL)
-    return [entry for entry in feed.entries if entry.user_shelves in ['read', 'currently-reading', 'to-read']]
+    return [entry for entry in feed.entries if entry.user_shelves in ['read', 'currently-reading', 'to-read']]       
 
-async def process_feed_entries(server_id, user_id, entries):
-    for entry in entries:
-        goodreads_book_id = entry.book_id
-        title = entry.title
-        author = entry.author_name
-        cover_image_url = entry.book_image_url
-        goodreads_url = GOODREADS_BOOK_URL_STUB + goodreads_book_id
-        publish_time = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %z")
-        shelf = entry.user_shelves
-        rating = int(entry.user_rating) if entry.user_rating else None
-        average_rating = float(entry.average_rating) if entry.average_rating else None
-        review = entry.user_review if entry.user_review else None
+async def cleanup(server_id, user_id, user_books, feed_entries):
+    # Check for books that are no longer in the feed
+    # and remove them from the user's list
+    current_feed_book_ids = {entry.book_id for entry in feed_entries}
+
+    async with AsyncSessionLocal() as session:
+        for user_book in user_books:
+            if user_book.book.goodreads_book_id not in current_feed_book_ids:
+                await crud.delete_user_book(session, server_id, user_id, user_book.book_id)
+    return user_books
+                
+async def resolve_feed_updates(user_books, feed_entries):
+    # Check for books not in the database but in the feed to produce a update message for Discord
+    user = user_books[0].user
+    async with AsyncSessionLocal() as session:
+        db_book_ids = {user_book.book.goodreads_book_id for user_book in user_books}
+        new_books = [entry for entry in feed_entries if entry.book_id not in db_book_ids]
+        print(f"New books in the feed for user {user}: {new_books}")
+        # TODO: Send a message to Discord with the new books or something
         
-        logging.info(f"Processing entry: {title} by {author} for user: {user_id} on shelf: {shelf}")
-    
-        async with AsyncSessionLocal() as session:
+async def process_feed_entries(server_id, user_id, feed_entries):
+    async with AsyncSessionLocal() as session:
+        for entry in feed_entries:
+            goodreads_book_id = entry.book_id
+            title = entry.title
+            author = entry.author_name
+            cover_image_url = entry.book_image_url
+            goodreads_url = GOODREADS_BOOK_URL_STUB + goodreads_book_id
+            publish_time = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %z")
+            shelf = entry.user_shelves
+            rating = int(entry.user_rating) if entry.user_rating else None
+            average_rating = float(entry.average_rating) if entry.average_rating else None
+            review = entry.user_review if entry.user_review else None
+            
+            logging.info(f"Processing entry: {title} by {author} for user: {user_id} on shelf: {shelf}")
+        
             book = await crud.save_book(session, server_id, goodreads_book_id, title, author, cover_image_url, goodreads_url, average_rating)
             if book:
                 await crud.save_user_book(session, server_id, user_id, book.id, shelf, rating, review, publish_time)
-                
-    # Check for books that are no longer in the feed
-    # and remove them from the user's list
+    
+async def process_feed(server_id, user_id, feed_entries):
+    # First get all the books for the user
     async with AsyncSessionLocal() as session:
-        books = await crud.get_all_books(session, server_id)
         user_books = await crud.get_all_user_books(session, server_id, user_id)
-        for user_book in user_books:
-            if user_book.book_id not in [book.id for book in books]:
-                await crud.delete_user_book(session, server_id, user_book.user_id, user_book.book_id)
-        
+    
+    # Then clean up the database by removing books that are no longer in the feed
+    await cleanup(server_id, user_id, user_books, feed_entries)
+    
+    # Then resolve feed updates
+    await resolve_feed_updates(user_books, feed_entries)
+    
+    # Then process the feed entries
+    await process_feed_entries(server_id, user_id, feed_entries)
+                
 async def process(server_id = None):
     logging.info("Processing feeds started...")
     async with AsyncSessionLocal() as session:
@@ -64,7 +89,7 @@ async def process(server_id = None):
                 return
             for user in users:
                 logging.info(f"Processing user: {user.discord_id} from server: {server.server_id}")
-                entries = await read_feed(user.goodreads_user_id)
-                await process_feed_entries(server.id, user.id, entries)
-                logging.info(f"Processed {len(entries)} entries for user: {user.discord_id} from server: {server.server_id}")
+                feed_entries = await read_feed(user.goodreads_user_id)
+                await process_feed(server.id, user.id, feed_entries)
+                logging.info(f"Processed {len(feed_entries)} entries for user: {user.discord_id} from server: {server.server_id}")
     logging.info(f'Processing feeds for all users for server {server.server_id} completed.')

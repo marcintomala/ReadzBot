@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy import Column, Integer, BigInteger, Double, String, Text, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, BigInteger, Double, String, Text, ForeignKey, DateTime, UniqueConstraint
 from datetime import datetime
 from dotenv import load_dotenv
 import os
@@ -64,8 +64,12 @@ class UserBook(Base):
     server = relationship("Server", back_populates="user_books")
     user = relationship("User", back_populates="books")
     book = relationship("Book", back_populates="users")
+    
+    __table_args__ = (
+        UniqueConstraint("server_id", "user_id", "book_id", name="uq_user_book"),
+    )
 
 async def init_db():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
