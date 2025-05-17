@@ -2,12 +2,16 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from cogs.feed_read import process
 from discord.ext import commands
 import logging
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 class SchedulerCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.scheduler = AsyncIOScheduler()
-        self.scheduler.add_job(self.update_feed, 'interval', minutes=1)
+        self.scheduler.add_job(self.update_feed, 'interval', minutes=os.getenv("SCHEDULER_INTERVAL_MINUTES", 15))
         self.scheduler.start()
 
     async def update_feed(self):
