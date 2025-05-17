@@ -1,12 +1,5 @@
-import cgi
-import codecs
-import re
-import feedparser as fp
-import audioop
-import aiohttp
 import logging
 import discord
-from discord import User, ClientUser, Invite, Template
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
