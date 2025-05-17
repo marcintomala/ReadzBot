@@ -6,3 +6,4 @@ apscheduler==3.10.4
 aiohttp==3.9.3
 legacy-cgi==2.6.3
 audioop-lts==0.2.1
+asyncpg==0.30.0
