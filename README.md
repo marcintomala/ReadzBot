@@ -8,7 +8,8 @@ Not affiliated with Goodreads
 
 #### Features
 
-- The ability for users to sign in to the bot (add their Goodreads RSS Feed)
+- The ability for users to sign in to the bot and add their Goodreads RSS feed for tracking
+- Database updates from RSS feed, running on configurable schedule to build and maintain the server-wide bookshelf
 
 ##### Planned
 
