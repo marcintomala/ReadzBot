@@ -65,9 +65,8 @@ class User(Base):
 
 class Book(Base):
     __tablename__ = "books"
-    id = Column(Integer, primary_key=True)
+    book_id = Column(BigInteger, unique=True, nullable=False, primary_key=True)
     server_id = Column(BigInteger, ForeignKey("servers.server_id"))
-    goodreads_book_id = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     author = Column(String, nullable=False)
     cover_image_url = Column(String)
@@ -79,10 +78,9 @@ class Book(Base):
 
 class UserBook(Base):
     __tablename__ = "user_books"
-    id = Column(Integer, primary_key=True)
     server_id = Column(BigInteger, ForeignKey("servers.server_id"))
     user_id = Column(BigInteger, ForeignKey("users.user_id"))
-    book_id = Column(Integer, ForeignKey("books.id"))
+    book_id = Column(BigInteger, ForeignKey("books.book_id"))
     shelf = Column(String)
     rating = Column(Integer)
     review = Column(Text)
@@ -93,10 +91,11 @@ class UserBook(Base):
     book = relationship("Book", back_populates="users")
     
     __table_args__ = (
+        PrimaryKeyConstraint('server_id', 'user_id', 'book_id'),
         UniqueConstraint("server_id", "user_id", "book_id", name="uq_user_book"),
     )
 
 async def init_db():
     async with engine.begin() as conn:
-        # await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

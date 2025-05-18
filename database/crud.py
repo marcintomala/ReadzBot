@@ -35,8 +35,8 @@ async def get_all_users(session: AsyncSession, server_id: int) -> list[User]:
 # -----------------------
 # Book Functions
 # -----------------------
-async def save_book(session: AsyncSession, server_id: int, goodreads_book_id: str, title: str, author: str, cover_image_url: str, goodreads_url: str, average_rating: float) -> Book | None:
-    stmt = select(Book).where(Book.goodreads_book_id == goodreads_book_id, Book.server_id == server_id)
+async def save_book(session: AsyncSession, server_id: int, book_id: str, title: str, author: str, cover_image_url: str, goodreads_url: str, average_rating: float) -> Book | None:
+    stmt = select(Book).where(Book.book_id == book_id, Book.server_id == server_id)
     result = await session.execute(stmt)
     book = result.scalar_one_or_none()
 
@@ -44,8 +44,8 @@ async def save_book(session: AsyncSession, server_id: int, goodreads_book_id: st
         return book
 
     book = Book(
+        book_id=book_id,
         server_id=server_id,
-        goodreads_book_id=goodreads_book_id,
         title=title,
         author=author,
         cover_image_url=cover_image_url,
@@ -56,8 +56,8 @@ async def save_book(session: AsyncSession, server_id: int, goodreads_book_id: st
     await session.flush()
     return book
 
-async def delete_book(session: AsyncSession, server_id: int, goodreads_book_id: str) -> None:
-    result = await session.execute(select(Book).where(Book.server_id == server_id, Book.goodreads_book_id == goodreads_book_id))
+async def delete_book(session: AsyncSession, server_id: int, book_id: str) -> None:
+    result = await session.execute(select(Book).where(Book.server_id == server_id, Book.book_id == book_id))
     db_book = result.scalar_one_or_none()
     if db_book:
         await session.delete(db_book)
@@ -71,15 +71,33 @@ async def get_all_books(session: AsyncSession, server_id: int) -> list[Book]:
 # UserBook Functions
 # -----------------------
 async def save_user_book(session: AsyncSession, server_id: int, user_id: int, book_id: int, shelf: str, rating: int = None, review: str = None, review_date: datetime = None) -> UserBook:
-    db_user_book = UserBook(server_id=server_id, user_id=user_id, book_id=book_id, shelf=shelf, rating=rating, review=review, review_date=review_date.replace(tzinfo=None) if review_date and review_date.tzinfo else review_date)
+    stmt = (
+        insert(UserBook)
+        .values(
+            server_id=server_id,
+            user_id=user_id,
+            book_id=book_id,
+            shelf=shelf,
+            rating=rating,
+            review=review,
+            review_date=review_date.replace(tzinfo=None) if review_date and review_date.tzinfo else review_date,
+        )
+        .on_conflict_do_update(
+            index_elements=["server_id", "user_id", "book_id"],
+            set_={
+                "shelf": shelf,
+                "rating": rating,
+                "review": review,
+                "review_date": review_date.replace(tzinfo=None) if review_date and review_date.tzinfo else review_date,
+            }
+        )
+    )
     try:
-        merged_user_book = await session.merge(db_user_book)
+        await session.execute(stmt)
         await session.commit()
-        await session.refresh(merged_user_book)
     except Exception as e:
         await session.rollback()
         logging.error(f"Error saving user book: {e}")
-    return merged_user_book
 
 async def delete_user_book(session: AsyncSession, server_id: int, user_id: int, book_id: int) -> None:
     result = await session.execute(select(UserBook).where(UserBook.server_id == server_id, UserBook.user_id == user_id, UserBook.book_id == book_id))

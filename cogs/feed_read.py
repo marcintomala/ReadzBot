@@ -1,6 +1,7 @@
 import feedparser as fp
 from database.connection import AsyncSessionLocal
 import database.crud as crud
+from database.models import UserBook
 from datetime import datetime
 from cogs.message_sender import send_update_message
 import logging
@@ -14,31 +15,31 @@ async def read_feed(goodreads_user_id):
     feed = fp.parse(RSS_URL)
     return [entry for entry in feed.entries if entry.user_shelves in ['read', 'currently-reading', 'to-read']]       
 
-async def cleanup(server_id, user_id, user_books, feed_entries):
+async def cleanup(server_id, user_id, user_books: list[UserBook], feed_entries):
     # Check for books that are no longer in the feed
     # and remove them from the user's list
     current_feed_book_ids = {entry.book_id for entry in feed_entries}
 
     async with AsyncSessionLocal() as session:
         for user_book in user_books:
-            if user_book.book.goodreads_book_id not in current_feed_book_ids:
+            if user_book.book_id not in current_feed_book_ids:
                 await crud.delete_user_book(session, server_id, user_id, user_book.book_id)
     return user_books
                 
-async def resolve_feed_updates(user_books, feed_entries):
+async def resolve_feed_updates(user_books: list[UserBook], feed_entries):
     # Check for books not in the database but in the feed to produce a update message for Discord
-    db_book_ids = {user_book.book.goodreads_book_id for user_book in user_books}
-    new_books = [entry for entry in feed_entries if entry.book_id not in db_book_ids]
+    db_book_ids = {user_book.book_id for user_book in user_books}
+    new_books = [entry for entry in feed_entries if int(entry.book_id) not in db_book_ids]
     return new_books
         
 async def process_feed_entries(server_id, user_id, feed_entries):
     async with AsyncSessionLocal() as session:
         for entry in feed_entries:
-            goodreads_book_id = entry.book_id
+            book_id = int(entry.book_id)
             title = entry.title
             author = entry.author_name
             cover_image_url = entry.book_image_url
-            goodreads_url = GOODREADS_BOOK_URL_STUB + goodreads_book_id
+            goodreads_url = f'{GOODREADS_BOOK_URL_STUB}{book_id}'
             publish_time = datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %z")
             shelf = entry.user_shelves
             rating = int(entry.user_rating) if entry.user_rating else None
@@ -47,9 +48,8 @@ async def process_feed_entries(server_id, user_id, feed_entries):
             
             logging.info(f"Processing entry: {title} by {author} for user: {user_id} on shelf: {shelf}")
         
-            book = await crud.save_book(session, server_id, goodreads_book_id, title, author, cover_image_url, goodreads_url, average_rating)
-            if book:
-                await crud.save_user_book(session, server_id, user_id, book.id, shelf, rating, review, publish_time)
+            await crud.save_book(session, server_id, book_id, title, author, cover_image_url, goodreads_url, average_rating)
+            await crud.save_user_book(session, server_id, user_id, book_id, shelf, rating, review, publish_time)
     
 async def process_feed(server_id, user_id, feed_entries):
     # First get all the books for the user
@@ -92,7 +92,7 @@ async def process(bot, server_id = None):
                 updates = await process_feed(server.server_id, user.user_id, feed_entries)
                 logging.info(f"Processed {len(feed_entries)} entries for user: {user.user_id} from server: {server.server_id}")
                 # Send updates to Discord
-                if update_thread_id:
+                if update_thread_id and len(updates) > 0:
                     await send_update_message(bot, update_thread_id, user.user_id, updates)
                 else:
                     logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")

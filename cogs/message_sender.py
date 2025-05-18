@@ -11,8 +11,6 @@ async def send_update_message(bot: commands.Bot, thread_id: int, user_id: int, e
     Requires the bot instance, server ID, and a parsed feed entry.
     """
     
-    
-
     thread = bot.get_channel(thread_id)
     emojis = thread.guild.emojis
         
