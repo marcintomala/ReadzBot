@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
-from database.models import Server, User, Book, UserBook
+from sqlalchemy.dialects.postgresql import insert
+from database.models import Server, User, Book, UserBook, ServerSettings, ForumThread
 from discord import Guild
 from datetime import datetime
 import logging
@@ -9,22 +10,22 @@ import logging
 # -----------------------
 # User Functions
 # -----------------------
-async def create_user(session: AsyncSession, server_id: int, discord_id: int, discord_username: str, goodreads_user_id: str, goodreads_display_name: str) -> User:
-    db_user = User(server_id=server_id, discord_id=discord_id, discord_username=discord_username, goodreads_user_id=goodreads_user_id, goodreads_display_name=goodreads_display_name)
+async def create_user(session: AsyncSession, server_id: int, user_id: int, discord_username: str, goodreads_user_id: str, goodreads_display_name: str) -> User:
+    db_user = User(server_id=server_id, user_id=user_id, discord_username=discord_username, goodreads_user_id=goodreads_user_id, goodreads_display_name=goodreads_display_name)
     session.add(db_user)
     await session.commit()
     await session.refresh(db_user)
     return db_user
 
-async def delete_user(session: AsyncSession, discord_id: int, server_id: int) -> None:
-    result = await session.execute(select(User).where(User.discord_id == discord_id, User.server_id == server_id))
+async def delete_user(session: AsyncSession, user_id: int, server_id: int) -> None:
+    result = await session.execute(select(User).where(User.user_id == user_id, User.server_id == server_id))
     db_user = result.scalar_one_or_none()
     if db_user:
         await session.delete(db_user)
         await session.commit()
 
-async def get_user(session: AsyncSession, server_id: int, discord_id: int) -> User | None:
-    result = await session.execute(select(User).where(User.server_id == server_id, User.discord_id == discord_id))
+async def get_user(session: AsyncSession, server_id: int, user_id: int) -> User | None:
+    result = await session.execute(select(User).where(User.server_id == server_id, User.user_id == user_id))
     return result.scalar_one_or_none()
 
 async def get_all_users(session: AsyncSession, server_id: int) -> list[User]:
@@ -108,3 +109,76 @@ async def get_all_servers(session: AsyncSession) -> list[Server]:
 async def get_server_by_server_id(session: AsyncSession, server_id: int) -> Server | None:
     result = await session.execute(select(Server).where(Server.server_id == server_id))
     return result.scalar_one_or_none()
+
+# -----------------------
+# ServerSettings Functions
+# -----------------------
+
+# Set channel
+async def set_notification_channel(session, server_id: int, channel_id: int, channel_type: str):
+    stmt = (
+        insert(ServerSettings)
+        .values(
+            server_id=server_id,
+            channel_id=channel_id,
+            channel_type=channel_type,
+        )
+        .on_conflict_do_update(
+            index_elements=["server_id"],
+            set_={
+                "channel_id": channel_id,
+                "channel_type": channel_type,
+            }
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+# Get channel info
+async def get_notification_channel(session, server_id: int) -> ServerSettings | None:
+    result = await session.execute(
+        select(ServerSettings).where(ServerSettings.server_id == server_id)
+    )
+    return result.scalar_one_or_none()
+
+# ------------------------
+# Forum Threads Functions
+# ------------------------
+
+# Set or update a forum thread
+async def set_forum_thread(session, server_id: int, thread_type: str, thread_id: int):
+    from database.models import ForumThread  # adjust path if needed
+    stmt = (
+        insert(ForumThread)
+        .values(
+            server_id=server_id,
+            thread_type=thread_type,
+            thread_id=thread_id,
+        )
+        .on_conflict_do_update(
+            index_elements=["server_id", "thread_type"],
+            set_={"thread_id": thread_id}
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
+
+# Get a specific thread
+async def get_forum_thread(session, server_id: int, thread_type: str):
+    result = await session.execute(
+        select(ForumThread.thread_id).where(
+            ForumThread.server_id == server_id,
+            ForumThread.thread_type == thread_type
+        )
+    )
+    row = result.first()
+    return row[0] if row else None
+
+# Get all threads for a server (optional)
+async def get_all_forum_threads(session, server_id: int):
+    result = await session.execute(
+        select(ForumThread.thread_type, ForumThread.thread_id).where(
+            ForumThread.server_id == server_id
+        )
+    )
+    return {row.thread_type: row.thread_id for row in result.fetchall()}

@@ -23,8 +23,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    guild = discord.Object(id=int(os.getenv("SERVER_ID")))
-    await bot.tree.sync(guild=guild)
+    server_id = int(os.getenv("SERVER_ID"))
+    guild = bot.get_guild(server_id)
+    synced = await bot.tree.sync(guild=guild)
     for cmd in bot.tree.get_commands():
         logging.info(f"Registered command: {cmd.name}")
     logging.info(f"{bot.user} has connected.")
@@ -38,6 +39,9 @@ async def on_ready():
                 logging.info(f"Added new server to DB: {guild.name} ({guild.id})")
             else:
                 logging.info(f"Server already exists in DB: {guild.name} ({guild.id})")
+    print("Synced commands:")
+    for cmd in synced:
+        print(f" - {cmd.name}")
         
 @bot.event
 async def on_guild_join(guild):

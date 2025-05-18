@@ -2,6 +2,7 @@ import feedparser as fp
 from database.connection import AsyncSessionLocal
 import database.crud as crud
 from datetime import datetime
+from cogs.message_sender import send_update_message
 import logging
 
 
@@ -26,12 +27,9 @@ async def cleanup(server_id, user_id, user_books, feed_entries):
                 
 async def resolve_feed_updates(user_books, feed_entries):
     # Check for books not in the database but in the feed to produce a update message for Discord
-    user = user_books[0].user
-    async with AsyncSessionLocal() as session:
-        db_book_ids = {user_book.book.goodreads_book_id for user_book in user_books}
-        new_books = [entry for entry in feed_entries if entry.book_id not in db_book_ids]
-        print(f"New books in the feed for user {user}: {new_books}")
-        # TODO: Send a message to Discord with the new books or something
+    db_book_ids = {user_book.book.goodreads_book_id for user_book in user_books}
+    new_books = [entry for entry in feed_entries if entry.book_id not in db_book_ids]
+    return new_books
         
 async def process_feed_entries(server_id, user_id, feed_entries):
     async with AsyncSessionLocal() as session:
@@ -61,13 +59,13 @@ async def process_feed(server_id, user_id, feed_entries):
     # Then clean up the database by removing books that are no longer in the feed
     await cleanup(server_id, user_id, user_books, feed_entries)
     
-    # Then resolve feed updates
-    await resolve_feed_updates(user_books, feed_entries)
-    
     # Then process the feed entries
     await process_feed_entries(server_id, user_id, feed_entries)
+    
+    # Then resolve and return feed updates
+    return await resolve_feed_updates(user_books, feed_entries)
                 
-async def process(server_id = None):
+async def process(bot, server_id = None):
     logging.info("Processing feeds started...")
     async with AsyncSessionLocal() as session:
         if server_id:
@@ -83,13 +81,20 @@ async def process(server_id = None):
                 return
         for server in servers:
             logging.info(f"Processing feeds for server {server.server_name} ({server.server_id})")
-            users = await crud.get_all_users(session=session, server_id=server.id)
+            users = await crud.get_all_users(session=session, server_id=server.server_id)
+            update_thread_id = await crud.get_forum_thread(session, server_id, "update")
             if len(users) == 0:
                 logging.warning(f"No shelves found for server {server.server_id}.")
                 return
             for user in users:
-                logging.info(f"Processing user: {user.discord_id} from server: {server.server_id}")
+                logging.info(f"Processing user: {user.user_id} from server: {server.server_id}")
                 feed_entries = await read_feed(user.goodreads_user_id)
-                await process_feed(server.id, user.id, feed_entries)
-                logging.info(f"Processed {len(feed_entries)} entries for user: {user.discord_id} from server: {server.server_id}")
-    logging.info(f'Processing feeds for all users for server {server.server_id} completed.')
+                updates = await process_feed(server.server_id, user.user_id, feed_entries)
+                logging.info(f"Processed {len(feed_entries)} entries for user: {user.user_id} from server: {server.server_id}")
+                # Send updates to Discord
+                if update_thread_id:
+                    await send_update_message(bot, update_thread_id, user.discord_username, updates)
+                else:
+                    logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
+    logging.info(f'Processing feeds for all users for server {server.server_id} completed. Sending updates to Discord...')
+    
