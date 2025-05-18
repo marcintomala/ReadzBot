@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("PG_CONNECTION_STRING")
+DATABASE_URL = os.getenv("PG_CONNECTION_STRING") if os.getenv("ENV") == "dev" else os.getenv("PG_CONNECTION_STRING").replace("localhost", os.getenv("PG_HOST"))
 
 print(f"Connecting to database at {DATABASE_URL}")
 
