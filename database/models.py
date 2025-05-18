@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-pg_url = os.getenv("PG_CONNECTION_STRING")
+pg_url = os.getenv("PG_CONNECTION_STRING") if os.getenv("ENV") == "dev" else os.getenv("PG_CONNECTION_STRING").replace("localhost", os.getenv("PG_HOST"))
 engine = create_async_engine(pg_url, echo=True)
 
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
