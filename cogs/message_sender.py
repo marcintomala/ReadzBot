@@ -41,15 +41,16 @@ def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user:
     # Group by shelf
     grouped = defaultdict(list)
     
-    grouped["to-read"] = []
-    grouped["currently-reading"] = []
-    grouped["read"] = []
-    
     for e in entries:
         grouped[e.shelf].append(e)
         print(f"Grouped {e.title} under shelf {e.shelf}")
+        
+    SHELF_ORDER = ['to-read', 'currently-reading', 'read']
 
-    for shelf, books in grouped.items():
+    for shelf in SHELF_ORDER:
+        if shelf not in grouped:
+            continue
+        books = grouped[shelf]
         lines = []
         for b in books:
             line = f"• [{b.title}]({GOODREADS_BOOK_URL_STUB}{b.book_id}) by {b.author}"

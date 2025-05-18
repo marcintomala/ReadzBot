@@ -99,7 +99,7 @@ async def process(bot, server_id = None):
         for server in servers:
             logging.info(f"Processing feeds for server {server.server_name} ({server.server_id})")
             users = await crud.get_all_users(session=session, server_id=server.server_id)
-            update_thread_id = await crud.get_forum_thread(session, server_id, "update")
+            update_thread_id = await crud.get_forum_thread(session, server.server_id, "update")
             if len(users) == 0:
                 logging.warning(f"No shelves found for server {server.server_id}.")
                 return
