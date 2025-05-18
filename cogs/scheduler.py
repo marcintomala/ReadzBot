@@ -16,7 +16,7 @@ class SchedulerCog(commands.Cog):
 
     async def update_feed(self):
         logging.info("Updating feeds for all servers...")
-        await process()
+        await process(self.bot)
         logging.info("All feeds updated.")
 
 async def setup(bot):

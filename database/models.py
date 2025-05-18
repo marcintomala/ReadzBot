@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy import Column, Integer, BigInteger, Double, String, Text, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, Double, String, Text, ForeignKey, DateTime, PrimaryKeyConstraint, UniqueConstraint, CheckConstraint
 from datetime import datetime
 from dotenv import load_dotenv
 import os
@@ -15,19 +15,42 @@ Base = declarative_base()
 
 class Server(Base):
     __tablename__ = "servers"
-    id = Column(Integer, primary_key=True)
-    server_id = Column(BigInteger, unique=True, nullable=False)
+    server_id = Column(BigInteger, unique=True, nullable=False, primary_key=True)
     server_name = Column(String, nullable=False)
 
     users = relationship("User", back_populates="server")
     books = relationship("Book", back_populates="server")
     user_books = relationship("UserBook", back_populates="server")
+    settings = relationship("ServerSettings", back_populates="server")
+    forum_threads = relationship("ForumThread", back_populates="server")
+    
+class ServerSettings(Base):
+    __tablename__ = "server_settings"
+    server_id = Column(BigInteger, ForeignKey("servers.server_id"), primary_key=True)
+    channel_id = Column(BigInteger)
+    channel_type = Column(String, nullable=False)
+    __table_args__ = (
+        CheckConstraint("channel_type IN ('text', 'forum')", name="ck_channel_type"),
+    )
+
+    server = relationship("Server", back_populates="settings")
+    
+class ForumThread(Base):
+    __tablename__ = "forum_threads"
+    server_id = Column(BigInteger, ForeignKey("servers.server_id"), nullable=False)
+    thread_type = Column(String, nullable=False)
+    thread_id = Column(BigInteger, nullable=False)
+
+    __table_args__ = (
+        PrimaryKeyConstraint('server_id', 'thread_type'),
+    )
+    
+    server = relationship("Server", back_populates="forum_threads")
 
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True)
-    server_id = Column(Integer, ForeignKey("servers.id"))
-    discord_id = Column(BigInteger, unique=True, nullable=False)
+    server_id = Column(BigInteger, ForeignKey("servers.server_id"))
+    user_id = Column(BigInteger, unique=True, nullable=False)
     discord_username = Column(String, nullable=False)
     goodreads_user_id = Column(String)
     goodreads_display_name = Column(String)
@@ -35,12 +58,15 @@ class User(Base):
 
     server = relationship("Server", back_populates="users")
     books = relationship("UserBook", back_populates="user")
+    
+    __table_args__ = (
+        PrimaryKeyConstraint('server_id', 'user_id'),
+    )
 
 class Book(Base):
     __tablename__ = "books"
-    id = Column(Integer, primary_key=True)
-    server_id = Column(Integer, ForeignKey("servers.id"))
-    goodreads_book_id = Column(String, unique=True, nullable=False)
+    book_id = Column(BigInteger, unique=True, nullable=False, primary_key=True)
+    server_id = Column(BigInteger, ForeignKey("servers.server_id"))
     title = Column(String, nullable=False)
     author = Column(String, nullable=False)
     cover_image_url = Column(String)
@@ -52,10 +78,9 @@ class Book(Base):
 
 class UserBook(Base):
     __tablename__ = "user_books"
-    id = Column(Integer, primary_key=True)
-    server_id = Column(Integer, ForeignKey("servers.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
-    book_id = Column(Integer, ForeignKey("books.id"))
+    server_id = Column(BigInteger, ForeignKey("servers.server_id"))
+    user_id = Column(BigInteger, ForeignKey("users.user_id"))
+    book_id = Column(BigInteger, ForeignKey("books.book_id"))
     shelf = Column(String)
     rating = Column(Integer)
     review = Column(Text)
@@ -66,6 +91,7 @@ class UserBook(Base):
     book = relationship("Book", back_populates="users")
     
     __table_args__ = (
+        PrimaryKeyConstraint('server_id', 'user_id', 'book_id'),
         UniqueConstraint("server_id", "user_id", "book_id", name="uq_user_book"),
     )
 
