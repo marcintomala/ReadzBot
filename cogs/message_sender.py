@@ -1,36 +1,42 @@
-from discord import Embed, Colour
-from datetime import datetime
+import discord
+from discord.ext import commands
+import datetime as dt
 from collections import defaultdict
 
 GOODREADS_BOOK_URL_STUB = 'https://www.goodreads.com/book/show/'
 
-async def send_update_message(bot, thread_id: int, discord_username: str, entries: list[dict]):
+async def send_update_message(bot: commands.Bot, thread_id: int, user_id: int, entries: list[dict]):
     """
     Sends a feed update message to the appropriate 'update' thread for a given server.
     Requires the bot instance, server ID, and a parsed feed entry.
     """
+    
+    
 
     thread = bot.get_channel(thread_id)
+    emojis = thread.guild.emojis
+        
+    user = await bot.fetch_user(user_id)
 
     if thread is None:
         print(f"⚠️ Thread ID {thread_id} not found in bot cache.")
         return
 
-    embed = build_batch_feed_update_embed(entries, discord_username)
+    embed = build_batch_feed_update_embed(entries, emojis, user)
     await thread.send(embed=embed)
 
-def build_batch_feed_update_embed(entries: list[dict], user_name: str) -> Embed:
+def build_batch_feed_update_embed(entries: list[dict], emojis: tuple, user: discord.User) -> discord.Embed:
     """
     Build a single embed for multiple book updates.
     `entries` is a list of dicts with keys like:
         - title, author, link, user_shelves, rating
     """
 
-    embed = Embed(
-        title=f"@{user_name}'s Reading Update",
-        description="Here are the latest Goodreads updates:",
-        color=Colour.blue(),
-        timestamp=datetime.utcnow()
+    embed = discord.Embed(
+        title=f"{discord.utils.get(emojis, name="applecat")} Goodreads Update",
+        description=f"{discord.utils.get(emojis, name="RonaldoPog")} {user.mention} updated their shelves!",
+        color=discord.Colour.blue(),
+        timestamp=dt.datetime.now(dt.timezone.utc)
     )
 
     # Group by shelf
@@ -46,6 +52,9 @@ def build_batch_feed_update_embed(entries: list[dict], user_name: str) -> Embed:
                 stars = render_stars(int(b.get("user_rating")))
                 line += f" – {stars}"
             lines.append(line)
+            if b.get("user_review"):
+                line += f"\n> {b['user_review']}"
+                lines.append(line)
 
         pretty_shelf = {
             "currently-reading": "📘 Currently Reading",
@@ -68,17 +77,17 @@ def render_stars(rating: int | float, max_stars: int = 5) -> str:
     return "⭐" * full_stars
 
 
-def build_poll_embed(book_titles: list[str], deadline: str = None) -> Embed:
+def build_poll_embed(book_titles: list[str], deadline: str = None) -> discord.Embed:
     """
     Creates an embed listing candidate books for a poll.
     """
     description = "\n".join(f"{i+1}️⃣ {title}" for i, title in enumerate(book_titles))
 
-    embed = Embed(
+    embed = discord.Embed(
         title="📊 Book Club Poll",
         description=description,
-        color=Colour.gold(),
-        timestamp=datetime.utcnow()
+        color=discord.Colour.gold(),
+        timestamp=dt.datetime.now(dt.timezone.utc)
     )
 
     if deadline:
@@ -87,16 +96,16 @@ def build_poll_embed(book_titles: list[str], deadline: str = None) -> Embed:
     return embed
 
 
-def build_discussion_thread_embed(book_title: str, author: str, book_url: str, image_url: str = None) -> Embed:
+def build_discussion_thread_embed(book_title: str, author: str, book_url: str, image_url: str = None) -> discord.Embed:
     """
     Embed for a newly created book discussion thread.
     """
-    embed = Embed(
+    embed = discord.Embed(
         title=book_title,
         url=book_url,
         description="🎉 **This is the official discussion thread!**",
-        color=Colour.purple(),
-        timestamp=datetime.utcnow()
+        color=discord.Colour.purple(),
+        timestamp=dt.datetime.now(dt.timezone.utc)
     )
     embed.add_field(name="Author", value=author, inline=False)
 

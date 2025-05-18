@@ -93,7 +93,7 @@ async def process(bot, server_id = None):
                 logging.info(f"Processed {len(feed_entries)} entries for user: {user.user_id} from server: {server.server_id}")
                 # Send updates to Discord
                 if update_thread_id:
-                    await send_update_message(bot, update_thread_id, user.discord_username, updates)
+                    await send_update_message(bot, update_thread_id, user.user_id, updates)
                 else:
                     logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
     logging.info(f'Processing feeds for all users for server {server.server_id} completed. Sending updates to Discord...')
