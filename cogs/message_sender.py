@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import datetime as dt
 from collections import defaultdict
+from cogs.FeedEntry import FeedEntry
 
 GOODREADS_BOOK_URL_STUB = 'https://www.goodreads.com/book/show/'
 
@@ -23,7 +24,7 @@ async def send_update_message(bot: commands.Bot, thread_id: int, user_id: int, e
     embed = build_batch_feed_update_embed(entries, emojis, user)
     await thread.send(embed=embed)
 
-def build_batch_feed_update_embed(entries: list[dict], emojis: tuple, user: discord.User) -> discord.Embed:
+def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user: discord.User) -> discord.Embed:
     """
     Build a single embed for multiple book updates.
     `entries` is a list of dicts with keys like:
@@ -39,25 +40,30 @@ def build_batch_feed_update_embed(entries: list[dict], emojis: tuple, user: disc
 
     # Group by shelf
     grouped = defaultdict(list)
+    
+    grouped["to-read"] = []
+    grouped["currently-reading"] = []
+    grouped["read"] = []
+    
     for e in entries:
-        grouped[e["user_shelves"]].append(e)
+        grouped[e.shelf].append(e)
+        print(f"Grouped {e.title} under shelf {e.shelf}")
 
     for shelf, books in grouped.items():
         lines = []
         for b in books:
-            line = f"• [{b['title']}]({GOODREADS_BOOK_URL_STUB + b['book_id']}) by {b['author_name']}"
-            if int(b.get("user_rating")) > 0 and shelf == "read":
-                stars = render_stars(int(b.get("user_rating")))
+            line = f"• [{b.title}]({GOODREADS_BOOK_URL_STUB}{b.book_id}) by {b.author}"
+            if int(b.rating) > 0 and shelf == "read":
+                stars = render_stars(int(b.rating))
                 line += f" – {stars}"
+            if b.review:
+                line += f"\n> {b.review}"
             lines.append(line)
-            if b.get("user_review"):
-                line += f"\n> {b['user_review']}"
-                lines.append(line)
 
         pretty_shelf = {
+            "to-read": "📚 To Read",
             "currently-reading": "📘 Currently Reading",
-            "read": "✅ Read",
-            "to-read": "📚 To Read"
+            "read": "✅ Read"
         }.get(shelf, shelf.capitalize())
 
         embed.add_field(name=pretty_shelf, value="\n".join(lines), inline=False)
