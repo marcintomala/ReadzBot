@@ -32,8 +32,8 @@ def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user:
     """
 
     embed = discord.Embed(
-        title=f"{discord.utils.get(emojis, name="applecat")} Goodreads Update",
-        description=f"{discord.utils.get(emojis, name="RonaldoPog")} {user.mention} updated their shelves!",
+        title=f'{discord.utils.get(emojis, name="applecat")} Goodreads Update',
+        description=f'{discord.utils.get(emojis, name="RonaldoPog")} {user.mention} updated their shelves!',
         color=discord.Colour.blue(),
         timestamp=dt.datetime.now(dt.timezone.utc)
     )
