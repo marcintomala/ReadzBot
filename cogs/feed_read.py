@@ -17,10 +17,11 @@ def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     for entry in feed.entries:
         raw_shelf = entry.get("user_shelves", "").strip().lower()
         raw_review = entry.get("user_review", "").strip()
+        raw_rating = int(entry.get("user_rating", "0").strip())
         
         if raw_shelf in ['read', 'currently-reading', 'to-read']:
             resolved_shelf = raw_shelf
-        elif raw_review:
+        elif raw_review or raw_rating > 0:
             resolved_shelf = "read"
         else:
             continue
@@ -33,7 +34,7 @@ def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
                 cover_image_url=entry.get("book_image_url"),
                 goodreads_url=f"https://www.goodreads.com/book/show/{entry.book_id}",
                 shelf=resolved_shelf,
-                rating=int(entry.user_rating) if entry.user_rating else None,
+                rating=raw_rating if raw_rating else 0,
                 average_rating=float(entry.average_rating) if entry.average_rating else None,
                 review=raw_review if raw_review else None,
                 published=datetime.strptime(entry.published, "%a, %d %b %Y %H:%M:%S %z")
@@ -55,10 +56,19 @@ async def cleanup(server_id, user_id, user_books: list[UserBook], feed_entries: 
     return user_books
                 
 async def resolve_feed_updates(user_books: list[UserBook], feed_entries: list[FeedEntry]):
-    # Check for books not in the database but in the feed to produce a update message for Discord
-    db_book_ids = {user_book.book_id for user_book in user_books}
-    new_books = [entry for entry in feed_entries if int(entry.book_id) not in db_book_ids]
-    return new_books
+    # Create a mapping of (book_id, shelf) -> rating for books in the database
+    db_book_info = {(user_book.book_id, user_book.shelf): user_book.rating for user_book in user_books}
+    # Find entries in the feed that are new, have a different shelf, or rating has changed
+    new_or_updated_books = []
+    for entry in feed_entries:
+        key = (int(entry.book_id), entry.shelf)
+        entry_rating = entry.rating if entry.rating is not None else 0
+        db_rating = db_book_info.get(key)
+        if key not in db_book_info:
+            new_or_updated_books.append(entry)
+        elif entry.shelf not in ["to-read", "currently-reading"] and db_rating != entry_rating:
+            new_or_updated_books.append(entry)
+    return new_or_updated_books
         
 async def save_entries(server_id, user_id, feed_entries: list[FeedEntry]):
     async with AsyncSessionLocal() as session:

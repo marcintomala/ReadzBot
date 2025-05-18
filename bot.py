@@ -59,10 +59,7 @@ async def load_extensions():
     await bot.load_extension("cogs.user_commands")
     await bot.load_extension("cogs.scheduler")
     
-if __name__ == "__main__":
-    import asyncio
-    async def main():
-        await init_db()
-        await load_extensions()
-        await bot.start(TOKEN)
-    asyncio.run(main())
+async def run_discord_bot():
+    await init_db()
+    await load_extensions()
+    await bot.start(TOKEN)
