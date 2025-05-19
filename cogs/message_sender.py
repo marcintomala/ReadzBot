@@ -69,7 +69,29 @@ def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user:
             "read": "✅ Read"
         }.get(shelf, shelf.capitalize())
 
-        embed.add_field(name=pretty_shelf, value="\n".join(lines), inline=False)
+        MAX_FIELD_LEN = 1024
+
+        def chunk_lines(lines: list[str], max_len: int = MAX_FIELD_LEN) -> list[str]:
+            chunks = []
+            current = []
+            current_len = 0
+            for line in lines:
+                line_len = len(line) + 1  # +1 for newline
+                if current_len + line_len > max_len:
+                    chunks.append("\n".join(current))
+                    current = [line]
+                    current_len = line_len
+                else:
+                    current.append(line)
+                    current_len += line_len
+            if current:
+                chunks.append("\n".join(current))
+            return chunks
+
+        chunks = chunk_lines(lines)
+        for i, chunk in enumerate(chunks):
+            suffix = f" ({i+1}/{len(chunks)})" if len(chunks) > 1 else ""
+            embed.add_field(name=pretty_shelf + suffix, value=chunk, inline=False)
 
     return embed
 
