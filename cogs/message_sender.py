@@ -1,12 +1,14 @@
 import discord
 from discord.ext import commands
 import datetime as dt
+from database.models import User
 from collections import defaultdict
 from cogs.FeedEntry import FeedEntry
 
 GOODREADS_BOOK_URL_STUB = 'https://www.goodreads.com/book/show/'
+GOODREADS_USER_URL_STUB = 'https://www.goodreads.com/user/show/'
 
-async def send_update_message(bot: commands.Bot, thread_id: int, user_id: int, entries: list[dict]):
+async def send_update_message(bot: commands.Bot, thread_id: int, user: User, entries: list[dict]):
     """
     Sends a feed update message to the appropriate 'update' thread for a given server.
     Requires the bot instance, server ID, and a parsed feed entry.
@@ -15,16 +17,16 @@ async def send_update_message(bot: commands.Bot, thread_id: int, user_id: int, e
     thread = bot.get_channel(thread_id)
     emojis = thread.guild.emojis
         
-    user = await bot.fetch_user(user_id)
+    discord_user = await bot.fetch_user(user.user_id)
 
     if thread is None:
         print(f"⚠️ Thread ID {thread_id} not found in bot cache.")
         return
 
-    embed = build_batch_feed_update_embed(entries, emojis, user)
+    embed = build_batch_feed_update_embed(entries, emojis, user, discord_user)
     await thread.send(embed=embed)
 
-def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user: discord.User) -> discord.Embed:
+def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user: User, discord_user: discord.User) -> discord.Embed:
     """
     Build a single embed for multiple book updates.
     `entries` is a list of dicts with keys like:
@@ -33,7 +35,7 @@ def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user:
 
     embed = discord.Embed(
         title=f'{discord.utils.get(emojis, name="applecat")} Goodreads Update',
-        description=f'{discord.utils.get(emojis, name="RonaldoPog")} {user.mention} updated their shelves!',
+        description=f'{discord.utils.get(emojis, name="RonaldoPog")} {discord_user.mention} ([{user.goodreads_display_name}]({GOODREADS_USER_URL_STUB}{user.goodreads_user_id})) updated their shelves!',
         color=discord.Colour.blue(),
         timestamp=dt.datetime.now(dt.timezone.utc)
     )
