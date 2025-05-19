@@ -15,12 +15,17 @@ def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     entries = []
 
     for entry in feed.entries:
-        raw_shelf = entry.get("user_shelves", "").strip().lower()
+        raw_shelves = entry.get("user_shelves", "").strip().lower()
         raw_review = entry.get("user_review", "").strip()
         raw_rating = int(entry.get("user_rating", "0").strip())
         
-        if raw_shelf in ['read', 'currently-reading', 'to-read']:
-            resolved_shelf = raw_shelf
+        shelves_to_track = ["read", "currently-reading", "to-read"]
+        split_shelves = raw_shelves.split(",") if raw_shelves else []
+        
+        if any(shelf in split_shelves for shelf in shelves_to_track):
+            resolved_shelf = "read" if "read" in split_shelves else \
+                "currently-reading" if "currently-reading" in split_shelves else \
+                "to-read" if "to-read" in split_shelves else None
         elif raw_review or raw_rating > 0:
             resolved_shelf = "read"
         else:
