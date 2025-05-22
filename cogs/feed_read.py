@@ -60,7 +60,7 @@ async def cleanup(server_id, user_id, user_books: list[UserBook], feed_entries: 
                 await crud.delete_user_book(session, server_id, user_id, user_book.book_id)
     return user_books
                 
-async def resolve_feed_updates(user_books: list[UserBook], feed_entries: list[FeedEntry]):
+async def resolve_feed_updates(user_books: list[UserBook], feed_entries: list[FeedEntry]) -> list[FeedEntry]:
     # Create a mapping of (book_id, shelf) -> rating for books in the database
     db_book_info = {(user_book.book_id, user_book.shelf): user_book.rating for user_book in user_books}
     # Find entries in the feed that are new, have a different shelf, or rating has changed
@@ -83,7 +83,7 @@ async def save_entries(server_id, user_id, feed_entries: list[FeedEntry]):
             await crud.save_book(session, server_id, entry.book_id, entry.title, entry.author, entry.cover_image_url, entry.goodreads_url, entry.average_rating)
             await crud.save_user_book(session, server_id, user_id, entry.book_id, entry.shelf, entry.rating, entry.review, entry.published)
     
-async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]):
+async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]) -> list[FeedEntry]:
     # First get all the books for the user
     async with AsyncSessionLocal() as session:
         user_books = await crud.get_all_user_books(session, server_id, user_id)
