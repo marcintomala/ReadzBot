@@ -31,7 +31,7 @@ def get_latest_progress_updates(entries):
         # Use title as key (optionally add author for more accuracy)
         book_key = entry['value'].split(" with ")[-1]  # crude, improve as needed
         entry_time = entry['published']
-        if (book_key not in latest_updates) or (entry_time > latest_updates[book_key]['time']):
+        if (book_key not in latest_updates) or (entry_time > latest_updates[book_key]['published']):
             entry['book_title'] = book_key
             latest_updates[book_key] = entry
     # Return only the latest entry for each book
