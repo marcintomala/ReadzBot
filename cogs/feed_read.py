@@ -39,7 +39,7 @@ def get_latest_progress_updates(entry):
     logging.info(f"Processing progress update for book: {book_title}")
     entry['book_title'] = book_title
     # Return only the latest entry for each book
-    return entry
+    return [entry]
 
 def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     RSS_URL = f'https://www.goodreads.com/review/list_rss/{goodreads_user_id}?shelf=all'
