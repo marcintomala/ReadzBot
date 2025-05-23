@@ -68,14 +68,12 @@ class User(Base):
 class Book(Base):
     __tablename__ = "books"
     book_id = Column(BigInteger, unique=True, nullable=False, primary_key=True)
-    server_id = Column(BigInteger, ForeignKey("servers.server_id"))
     title = Column(String, nullable=False)
     author = Column(String, nullable=False)
     cover_image_url = Column(String)
     goodreads_url = Column(String)
     average_rating = Column(Double)
 
-    server = relationship("Server", back_populates="books")
     users = relationship("UserBook", back_populates="book")
 
 class UserBook(Base):

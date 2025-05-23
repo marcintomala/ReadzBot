@@ -35,8 +35,8 @@ async def get_all_users(session: AsyncSession, server_id: int) -> list[User]:
 # -----------------------
 # Book Functions
 # -----------------------
-async def save_book(session: AsyncSession, server_id: int, book_id: str, title: str, author: str, cover_image_url: str, goodreads_url: str, average_rating: float) -> Book | None:
-    stmt = select(Book).where(Book.book_id == book_id, Book.server_id == server_id)
+async def save_book(session: AsyncSession, book_id: str, title: str, author: str, cover_image_url: str, goodreads_url: str, average_rating: float) -> Book | None:
+    stmt = select(Book).where(Book.book_id == book_id)
     result = await session.execute(stmt)
     book = result.scalar_one_or_none()
 
@@ -45,7 +45,6 @@ async def save_book(session: AsyncSession, server_id: int, book_id: str, title: 
 
     book = Book(
         book_id=book_id,
-        server_id=server_id,
         title=title,
         author=author,
         cover_image_url=cover_image_url,
@@ -56,23 +55,19 @@ async def save_book(session: AsyncSession, server_id: int, book_id: str, title: 
     await session.flush()
     return book
 
-async def delete_book(session: AsyncSession, server_id: int, book_id: str) -> None:
-    result = await session.execute(select(Book).where(Book.server_id == server_id, Book.book_id == book_id))
+async def delete_book(session: AsyncSession, book_id: str) -> None:
+    result = await session.execute(select(Book).where(Book.book_id == book_id))
     db_book = result.scalar_one_or_none()
     if db_book:
         await session.delete(db_book)
         await session.commit()
         
-async def get_all_books(session: AsyncSession, server_id: int) -> list[Book]:
-    result = await session.execute(select(Book).where(Book.server_id == server_id))
+async def get_all_books(session: AsyncSession) -> list[Book]:
+    result = await session.execute(select(Book))
     return result.scalars().all()
 
 async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
-    result = await session.execute(
-        select(Book).where(
-            Book.title == title
-        )
-    )
+    result = await session.execute(select(Book).where(Book.title == title))
     return result.scalar_one_or_none()
 
 # -----------------------

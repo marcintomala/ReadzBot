@@ -108,7 +108,7 @@ async def save_entries(server_id, user_id, feed_entries: list[FeedEntry]):
         for entry in feed_entries:
             logging.info(f"Processing entry: {entry.title} by {entry.author} for user: {user_id} on shelf: {entry.shelf}")
         
-            await crud.save_book(session, server_id, entry.book_id, entry.title, entry.author, entry.cover_image_url, entry.goodreads_url, entry.average_rating)
+            await crud.save_book(session, entry.book_id, entry.title, entry.author, entry.cover_image_url, entry.goodreads_url, entry.average_rating)
             await crud.save_user_book(session, server_id, user_id, entry.book_id, entry.shelf, entry.rating, entry.review, entry.published)
     
 async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]) -> list[FeedEntry]:
@@ -133,7 +133,7 @@ async def process_progress_update_feed(server_id, user_id, update_feed_entries) 
             if not already_sent:
                 new_updates.append(update)
                 await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
-                update['book'] = await crud.get_book_by_title(session, server_id, user_id, update['book_title'])
+                update['book'] = await crud.get_book_by_title(session, update['book_title'])
     
     return new_updates
                 
