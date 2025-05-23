@@ -4,6 +4,7 @@ import datetime as dt
 from database.models import User
 from collections import defaultdict
 from cogs.FeedEntry import FeedEntry
+import re
 
 GOODREADS_BOOK_URL_STUB = 'https://www.goodreads.com/book/show/'
 GOODREADS_USER_URL_STUB = 'https://www.goodreads.com/user/show/'
@@ -243,7 +244,6 @@ def build_progress_update_embed(update, user: User, discord_user: discord.User, 
     Build an embed for a Goodreads reading progress update.
     Supports both percentage and page-based updates.
     """
-    import re
 
     # Try to extract progress info from entry.title
     title = update['value']

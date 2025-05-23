@@ -7,6 +7,7 @@ from cogs.message_sender import send_update_message, send_progress_update_messag
 from cogs.FeedEntry import FeedEntry
 import logging
 from dateutil import parser as date_parser
+import re
 
 def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
     RSS_URL = f'https://www.goodreads.com/user_status/list/{goodreads_user_id}?format=rss'
@@ -27,14 +28,22 @@ def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
 
 def get_latest_progress_updates(entries):
     latest_updates = {}
+    
+        # Patterns for percentage and page-based updates
+    percent_pattern = re.compile(r"(.+?) is (\d+)% done with (.+)")
+    page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
+    
     for entry in entries:
-        # Use title as key (optionally add author for more accuracy)
-        book_key = entry['value'].split(" with ")[-1]  # crude, improve as needed
-        logging.info(f"Processing progress update for book: {book_key}")
+        if percent_match := percent_pattern.match(entry['value']):
+            user_name, percent, book_title = percent_match.groups()
+        elif page_match := page_pattern.match(entry['value']):
+            user_name, page, total, book_title = page_match.groups()
+    
+        logging.info(f"Processing progress update for book: {book_title}")
         entry_time = entry['published']
-        if (book_key not in latest_updates) or (entry_time > latest_updates[book_key]['published']):
-            entry['book_title'] = book_key
-            latest_updates[book_key] = entry
+        if (book_title not in latest_updates) or (entry_time > latest_updates[book_title]['published']):
+            entry['book_title'] = book_title
+            latest_updates[book_title] = entry
     # Return only the latest entry for each book
     return [v for v in latest_updates.values()]
 
