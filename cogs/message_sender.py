@@ -137,7 +137,7 @@ def build_finished_book_embed(book: FeedEntry, emojis: tuple, user: User, discor
     review_section = f"\n\n> {book.review}" if book.review else ""
     description = (
         f"{finished_line}\n"
-        f"**{book.title}** by *{book.author}* {nyanod}\n"
+        f"**[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})** by *{book.author}* {nyanod}\n"
         f"> {review_section}"
     )
 
@@ -148,7 +148,7 @@ def build_finished_book_embed(book: FeedEntry, emojis: tuple, user: User, discor
         color=discord.Colour.green(),
         timestamp=dt.datetime.now(dt.timezone.utc)
     )
-    embed.set_author(name=user.goodreads_display_name, icon_url=discord_user.avatar)
+    embed.set_author(name=user.discord_username, icon_url=discord_user.avatar)
     embed.set_thumbnail(url=book.cover_image_url)
 
     if book.rating > 0:
@@ -169,7 +169,7 @@ def build_current_book_embed(book: FeedEntry, emojis: tuple, user: User, discord
     description = (
         f"{now_reading}\n\n"
         f"{discord_user.mention} ({user_line}) just started:\n"
-        f"**{book.title}** by *{book.author}* {blurryeyes}"
+        f"**[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})** by *{book.author}* {blurryeyes}"
     )
 
     embed = discord.Embed(
@@ -179,7 +179,7 @@ def build_current_book_embed(book: FeedEntry, emojis: tuple, user: User, discord
         color=discord.Colour.purple(),
         timestamp=dt.datetime.now(dt.timezone.utc)
     )
-    embed.set_author(name=user.goodreads_display_name, icon_url=discord_user.avatar)
+    embed.set_author(name=user.discord_username, icon_url=discord_user.avatar)
     embed.set_thumbnail(url=book.cover_image_url)
 
     return embed
@@ -254,37 +254,38 @@ def build_progress_update_embed(update, user: User, discord_user: discord.User, 
     # Patterns for percentage and page-based updates
     percent_pattern = re.compile(r"(.+?) is (\d+)% done with (.+)")
     page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
+    
+        # Optionally, get a book cover if available
+    book = update['book'] if update['book'] else None
+    cover_url = book.cover_image_url if book else None
+    
+    # Optionally, add a link to the book if available
+    book_url = book.goodreads_url if book else None
+    if book_url:
+        embed.url = book_url
 
     if percent_match := percent_pattern.match(title):
         user_name, percent, book_title = percent_match.groups()
-        progress_text = f"**{user_name}** is **{percent}%** done with **{book_title}**!"
+        progress_text = f"**{user.goodreads_display_name}** is **{percent}%** done with **[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})**!"
         progress_emoji = "📈"
     elif page_match := page_pattern.match(title):
         user_name, page, total, book_title = page_match.groups()
-        progress_text = f"**{user_name}** is on page **{page}** of **{total}** of **{book_title}**!"
+        progress_text = f"**{user.goodreads_display_name}** is on page **{page}** of **{total}** of **[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})**!"
         progress_emoji = "📖"
     else:
         # Fallback: just show the title
         progress_text = title
         progress_emoji = "📚"
 
-    # Optionally, get a book cover if available
-    book = update['book'] if update['book'] else None
-    cover_url = book.cover_image_url if book else None
-
     embed = discord.Embed(
         title=f"{progress_emoji} Reading Progress Update",
         description=progress_text,
-        color=discord.Colour.blue(),
+        color=discord.Colour.purple(),
         timestamp=dt.datetime.now(dt.timezone.utc)
     )
-    embed.set_author(name=user.goodreads_display_name, icon_url=discord_user.avatar)
+    embed.set_author(name=user.discord_username, icon_url=discord_user.avatar)
     if cover_url:
         embed.set_thumbnail(url=cover_url)
 
-    # Optionally, add a link to the book if available
-    book_url = book.goodreads_url if book else None
-    if book_url:
-        embed.url = book_url
 
     return embed
