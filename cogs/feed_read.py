@@ -185,7 +185,7 @@ async def process(bot, server_id = None):
                     logging.info(f"Processed {len(new_updates)} progress updates for user: {user.user_id} from server: {server.server_id}:")
                     for update in new_updates:
                         logging.info(f"  - {update['value']} for book: {update['book'].title} at {update['published']}")
-                    # await send_progress_update_message(bot, update_thread_id, user, new_updates)
+                    await send_progress_update_message(bot, update_thread_id, user, new_updates)
                 else:
                     logging.warning(f"No update thread found for server {server.server_id}. Cannot send progress updates.")
             
