@@ -104,8 +104,8 @@ class ProgressUpdate(Base):
     value = Column(String)
     published = Column(DateTime)
 
-    server = relationship("Server", back_populates="servers")
-    user = relationship("User", back_populates="users")
+    server = relationship("Server", back_populates="server")
+    user = relationship("User", back_populates="user")
 
     __table_args__ = (
         PrimaryKeyConstraint('server_id', 'user_id', 'published'),
