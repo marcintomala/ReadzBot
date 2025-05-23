@@ -261,16 +261,14 @@ def build_progress_update_embed(update, user: User, discord_user: discord.User, 
     
     # Optionally, add a link to the book if available
     book_url = book.goodreads_url if book else None
-    if book_url:
-        embed.url = book_url
 
     if percent_match := percent_pattern.match(title):
         user_name, percent, book_title = percent_match.groups()
-        progress_text = f"**{user.goodreads_display_name}** is **{percent}%** done with **[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})**!"
+        progress_text = f"**{user.goodreads_display_name}** is **{percent}%** done with **[{book.title}]({book_url})**!"
         progress_emoji = "📈"
     elif page_match := page_pattern.match(title):
         user_name, page, total, book_title = page_match.groups()
-        progress_text = f"**{user.goodreads_display_name}** is on page **{page}** of **{total}** of **[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})**!"
+        progress_text = f"**{user.goodreads_display_name}** is on page **{page}** of **{total}** of **[{book.title}]({book_url})**!"
         progress_emoji = "📖"
     else:
         # Fallback: just show the title
