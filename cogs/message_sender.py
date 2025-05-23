@@ -45,7 +45,6 @@ async def send_update_message(bot: commands.Bot, thread_id: int, user: User, ent
             embed = build_current_book_embed(entry, emojis, user, discord_user)
             await thread.send(embed=embed)
 
-
 def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user: User, discord_user: discord.User) -> discord.Embed:
     """
     Build a single embed for multiple book updates.
@@ -218,5 +217,73 @@ def build_discussion_thread_embed(book_title: str, author: str, book_url: str, i
 
     if image_url:
         embed.set_thumbnail(url=image_url)
+
+    return embed
+
+async def send_progress_update_message(bot: commands.Bot, thread_id: int, user: User, update: dict):
+    """
+    Sends a reading progress update message to the appropriate 'update' thread for a given server.
+    Requires the bot instance, server ID, and a parsed feed entry.
+    """
+    
+    thread = bot.get_channel(thread_id)
+    emojis = thread.guild.emojis
+        
+    discord_user = await bot.fetch_user(user.user_id)
+
+    if thread is None:
+        print(f"⚠️ Thread ID {thread_id} not found in bot cache.")
+        return
+    
+    embed = build_progress_update_embed(update, user, discord_user, emojis)
+    await thread.send(embed=embed)
+
+def build_progress_update_embed(update, user: User, discord_user: discord.User, emojis: tuple = ()) -> discord.Embed:
+    """
+    Build an embed for a Goodreads reading progress update.
+    Supports both percentage and page-based updates.
+    """
+    import re
+
+    # Try to extract progress info from entry.title
+    title = update['value']
+    book_title = None
+    progress_text = None
+
+    # Patterns for percentage and page-based updates
+    percent_pattern = re.compile(r"(.+?) is (\d+)% done with (.+)")
+    page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
+
+    if percent_match := percent_pattern.match(title):
+        user_name, percent, book_title = percent_match.groups()
+        progress_text = f"**{user_name}** is **{percent}%** done with **{book_title}**!"
+        progress_emoji = "📈"
+    elif page_match := page_pattern.match(title):
+        user_name, page, total, book_title = page_match.groups()
+        progress_text = f"**{user_name}** is on page **{page}** of **{total}** of **{book_title}**!"
+        progress_emoji = "📖"
+    else:
+        # Fallback: just show the title
+        progress_text = title
+        progress_emoji = "📚"
+
+    # Optionally, get a book cover if available
+    book = update['book'] if update['book'] else None
+    cover_url = book.cover_image_url if book else None
+
+    embed = discord.Embed(
+        title=f"{progress_emoji} Reading Progress Update",
+        description=progress_text,
+        color=discord.Colour.blue(),
+        timestamp=dt.datetime.now(dt.timezone.utc)
+    )
+    embed.set_author(name=user.goodreads_display_name, icon_url=discord_user.avatar)
+    if cover_url:
+        embed.set_thumbnail(url=cover_url)
+
+    # Optionally, add a link to the book if available
+    book_url = book.goodreads_url if book else None
+    if book_url:
+        embed.url = book_url
 
     return embed

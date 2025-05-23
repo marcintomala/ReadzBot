@@ -23,6 +23,7 @@ class Server(Base):
     user_books = relationship("UserBook", back_populates="server")
     settings = relationship("ServerSettings", back_populates="server")
     forum_threads = relationship("ForumThread", back_populates="server")
+    progress_updates = relationship("ProgressUpdate", back_populates="server")
     
 class ServerSettings(Base):
     __tablename__ = "server_settings"
@@ -58,6 +59,7 @@ class User(Base):
 
     server = relationship("Server", back_populates="users")
     books = relationship("UserBook", back_populates="user")
+    progress_updates = relationship("ProgressUpdate", back_populates="user")
     
     __table_args__ = (
         PrimaryKeyConstraint('server_id', 'user_id'),
@@ -93,6 +95,21 @@ class UserBook(Base):
     __table_args__ = (
         PrimaryKeyConstraint('server_id', 'user_id', 'book_id'),
         UniqueConstraint("server_id", "user_id", "book_id", name="uq_user_book"),
+    )
+    
+class ProgressUpdate(Base):
+    __tablename__ = "progress_updates"
+    server_id = Column(BigInteger, ForeignKey("servers.server_id"))
+    user_id = Column(BigInteger, ForeignKey("users.user_id"))
+    value = Column(String)
+    published = Column(DateTime)
+
+    server = relationship("Server", back_populates="servers")
+    user = relationship("User", back_populates="users")
+
+    __table_args__ = (
+        PrimaryKeyConstraint('server_id', 'user_id', 'published'),
+        UniqueConstraint("server_id", "user_id", "published", name="uq_progress_update"),
     )
 
 async def init_db():

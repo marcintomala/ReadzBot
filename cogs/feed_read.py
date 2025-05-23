@@ -3,11 +3,40 @@ from database.connection import AsyncSessionLocal
 import database.crud as crud
 from database.models import UserBook
 from datetime import datetime
-from cogs.message_sender import send_update_message
+from cogs.message_sender import send_update_message, send_progress_update_message
 from cogs.FeedEntry import FeedEntry
 import logging
+from dateutil import parser as date_parser
 
+def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
+    RSS_URL = f'https://www.goodreads.com/user_status/list/{goodreads_user_id}?format=rss'
+    feed = fp.parse(RSS_URL)
+    entries = []
+    
+    for entry in feed.entries:
+        entry_dict = {
+            'value': entry.title,
+            'published': date_parser.parse(entry.published),
+        }
+        entries.append(entry_dict)
+        
+    # Filter out duplicates and sort by date
+    entries = list(set(entries))
+    entries.sort(key=lambda x: x['published'], reverse=True)
+    
+    return get_latest_progress_updates(entries)
 
+def get_latest_progress_updates(entries):
+    latest_updates = {}
+    for entry in entries:
+        # Use title as key (optionally add author for more accuracy)
+        book_key = entry['value'].split(" with ")[-1]  # crude, improve as needed
+        entry_time = entry['published']
+        if (book_key not in latest_updates) or (entry_time > latest_updates[book_key]['time']):
+            entry['book_title'] = book_key
+            latest_updates[book_key] = entry
+    # Return only the latest entry for each book
+    return [v for v in latest_updates.values()]
 
 def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     RSS_URL = f'https://www.goodreads.com/review/list_rss/{goodreads_user_id}?shelf=all'
@@ -96,6 +125,18 @@ async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]) -> lis
     
     # Then resolve and return feed updates
     return await resolve_feed_updates(user_books, feed_entries)
+
+async def process_progress_update_feed(server_id, user_id, update_feed_entries) -> list[dict]:
+    new_updates = []
+    async with AsyncSessionLocal() as session:
+        for update in update_feed_entries:
+            already_sent = await crud.check_sent_update(session, server_id, user_id, update['published'])
+            if not already_sent:
+                new_updates.append(update)
+                await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
+                update['book'] = await crud.get_book_by_title(session, server_id, user_id, update['book_title'])
+    
+    return new_updates
                 
 async def process(bot, server_id = None):
     logging.info("Processing feeds started...")
@@ -128,5 +169,17 @@ async def process(bot, server_id = None):
                     await send_update_message(bot, update_thread_id, user, updates)
                 else:
                     logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
+                    
+                # Process progress updates
+                progress_updates = read_progress_update_feed(user.goodreads_user_id)
+                new_updates = await process_progress_update_feed(server.server_id, user.user_id, progress_updates)
+                if update_thread_id and len(new_updates) > 0:
+                    logging.info(f"Processed {len(new_updates)} progress updates for user: {user.user_id} from server: {server.server_id}:")
+                    for update in new_updates:
+                        logging.info(f"  - {update['value']} for book: {update['book'].title} at {update['published']}")
+                    # await send_progress_update_message(bot, update_thread_id, user, new_updates)
+                else:
+                    logging.warning(f"No update thread found for server {server.server_id}. Cannot send progress updates.")
+            
     logging.info(f'Processing feeds for all users for server {server.server_id} completed. Sending updates to Discord...')
     
