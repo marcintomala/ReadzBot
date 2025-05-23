@@ -30,6 +30,7 @@ def get_latest_progress_updates(entries):
     for entry in entries:
         # Use title as key (optionally add author for more accuracy)
         book_key = entry['value'].split(" with ")[-1]  # crude, improve as needed
+        logging.info(f"Processing progress update for book: {book_key}")
         entry_time = entry['published']
         if (book_key not in latest_updates) or (entry_time > latest_updates[book_key]['published']):
             entry['book_title'] = book_key
