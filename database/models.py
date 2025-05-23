@@ -19,7 +19,6 @@ class Server(Base):
     server_name = Column(String, nullable=False)
 
     users = relationship("User", back_populates="server")
-    books = relationship("Book", back_populates="server")
     user_books = relationship("UserBook", back_populates="server")
     settings = relationship("ServerSettings", back_populates="server")
     forum_threads = relationship("ForumThread", back_populates="server")
