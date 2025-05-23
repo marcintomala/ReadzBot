@@ -21,7 +21,6 @@ def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
         entries.append(entry_dict)
         
     # Filter out duplicates and sort by date
-    entries = list(set(entries))
     entries.sort(key=lambda x: x['published'], reverse=True)
     
     return get_latest_progress_updates(entries)
