@@ -29,7 +29,7 @@ def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
 def get_latest_progress_updates(entries):
     latest_updates = {}
     
-        # Patterns for percentage and page-based updates
+    # Patterns for percentage and page-based updates
     percent_pattern = re.compile(r"(.+?) is (\d+)% done with (.+)")
     page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
     
