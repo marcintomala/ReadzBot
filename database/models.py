@@ -104,7 +104,7 @@ class ProgressUpdate(Base):
     value = Column(String)
     published = Column(DateTime)
 
-    server = relationship("Server", back_populates="server")
+    server = relationship("Server", back_populates="progress_updates")
     user = relationship("User", back_populates="user")
 
     __table_args__ = (

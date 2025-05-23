@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
-from database.models import Server, User, Book, UserBook, ServerSettings, ForumThread
+from database.models import Server, User, Book, UserBook, ServerSettings, ForumThread, ProgressUpdate
 from discord import Guild
 from datetime import datetime
 import logging
@@ -66,6 +66,14 @@ async def delete_book(session: AsyncSession, server_id: int, book_id: str) -> No
 async def get_all_books(session: AsyncSession, server_id: int) -> list[Book]:
     result = await session.execute(select(Book).where(Book.server_id == server_id))
     return result.scalars().all()
+
+async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
+    result = await session.execute(
+        select(Book).where(
+            Book.title == title
+        )
+    )
+    return result.scalar_one_or_none()
 
 # -----------------------
 # UserBook Functions
@@ -200,3 +208,27 @@ async def get_all_forum_threads(session, server_id: int):
         )
     )
     return {row.thread_type: row.thread_id for row in result.fetchall()}
+
+
+# ------------------------
+# Progress Updates Functions
+# ------------------------
+async def save_new_update(session, server_id: int, user_id: int, update_value: str, published_at: datetime):
+    new_update = ProgressUpdate(
+        server_id=server_id,
+        user_id=user_id,
+        value=update_value,
+        published=published_at.replace(tzinfo=None) if published_at and published_at.tzinfo else published_at,
+    )
+    session.add(new_update)
+    await session.commit()
+    
+async def check_sent_update(session, server_id: int, user_id: int, published_at: datetime) -> bool:
+    result = await session.execute(
+        select(ProgressUpdate).where(
+            ProgressUpdate.server_id == server_id,
+            ProgressUpdate.user_id == user_id,
+            ProgressUpdate.published == published_at.replace(tzinfo=None) if published_at and published_at.tzinfo else published_at
+        )
+    )
+    return result.scalar_one_or_none() is not None
