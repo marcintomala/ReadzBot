@@ -26,26 +26,20 @@ def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
     
     return get_latest_progress_updates(entries)
 
-def get_latest_progress_updates(entries):
-    latest_updates = {}
-    
+def get_latest_progress_updates(entry):
     # Patterns for percentage and page-based updates
     percent_pattern = re.compile(r"(.+?) is (\d+)% done with (.+)")
     page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
     
-    for entry in entries:
-        if percent_match := percent_pattern.match(entry['value']):
-            user_name, percent, book_title = percent_match.groups()
-        elif page_match := page_pattern.match(entry['value']):
-            user_name, page, total, book_title = page_match.groups()
-    
-        logging.info(f"Processing progress update for book: {book_title}")
-        entry_time = entry['published']
-        if (book_title not in latest_updates) or (entry_time > latest_updates[book_title]['published']):
-            entry['book_title'] = book_title
-            latest_updates[book_title] = entry
+    if percent_match := percent_pattern.match(entry['value']):
+        user_name, percent, book_title = percent_match.groups()
+    elif page_match := page_pattern.match(entry['value']):
+        user_name, page, total, book_title = page_match.groups()
+
+    logging.info(f"Processing progress update for book: {book_title}")
+    entry['book_title'] = book_title
     # Return only the latest entry for each book
-    return [v for v in latest_updates.values()]
+    return entry
 
 def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     RSS_URL = f'https://www.goodreads.com/review/list_rss/{goodreads_user_id}?shelf=all'
