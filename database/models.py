@@ -98,7 +98,7 @@ class ProgressUpdate(Base):
     __tablename__ = "progress_updates"
     server_id = Column(BigInteger, ForeignKey("servers.server_id"))
     user_id = Column(BigInteger, ForeignKey("users.user_id"))
-    value = Column(String)
+    value = Column(Text)
     published = Column(DateTime)
 
     server = relationship("Server", back_populates="progress_updates")
