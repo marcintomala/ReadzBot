@@ -32,9 +32,9 @@ async def send_update_message(bot: commands.Bot, thread_id: int, user: User, ent
         embed = build_batch_feed_update_embed(entries, emojis, user, discord_user)
         await thread.send(embed=embed)
         return
-    
-    to_read_embed = build_batch_feed_update_embed(to_read, emojis, user, discord_user)
-    await thread.send(embed=to_read_embed)
+    elif len(to_read) > 0:
+        to_read_embed = build_batch_feed_update_embed(to_read, emojis, user, discord_user)
+        await thread.send(embed=to_read_embed)
     
     for entry in rest:
         if entry is None:
@@ -138,7 +138,7 @@ def build_finished_book_embed(book: FeedEntry, emojis: tuple, user: User, discor
     description = (
         f"{finished_line}\n"
         f"**[{book.title}]({GOODREADS_BOOK_URL_STUB}{book.book_id})** by *{book.author}* {nyanod}\n"
-        f"> {review_section}"
+        f"{review_section}"
     )
 
     embed = discord.Embed(
