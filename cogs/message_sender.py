@@ -235,7 +235,8 @@ async def send_progress_update_message(bot: commands.Bot, thread_id: int, user: 
         print(f"⚠️ Thread ID {thread_id} not found in bot cache.")
         return
     
-    if update['message_id']:
+    if 'message_id' in update and update['message_id']:
+        # The key exists and has a non-falsy value
         last_update_message = await thread.fetch_message(update['message_id'])
         if last_update_message:
             await last_update_message.delete()
