@@ -135,21 +135,23 @@ async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]) -> lis
 async def process_progress_update_feed(server_id, user_id, new_update_feed_entry) -> dict:
     async with AsyncSessionLocal() as session:
         already_sent = await crud.check_sent_update(session, server_id, user_id, new_update_feed_entry['published'])
-        if not already_sent:
-            # await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
-            book = await crud.get_book_by_title(session, new_update_feed_entry['book_title'])
-            if not book:
-                logging.warning(f"Failed to get book with title '{new_update_feed_entry['book_title']}', trying fuzzy match.")
-                book = await crud.get_book_by_title_fuzzy(session, new_update_feed_entry['book_title'])
-            if not book:
-                logging.error(f"Failed to find book '{new_update_feed_entry['book_title']}' in the database. Skipping progress update.")
-                return None
-            logging.info(f"Found book '{book}' for progress update.")
-            new_update_feed_entry['book'] = book
-            last_update = await crud.get_last_progress_update(session, server_id, user_id, book.book_id)
-            new_update_feed_entry['last_update_message_id'] = last_update.message_id if last_update else None
-    
-    return new_update_feed_entry
+        logging.info(f"Checking if progress update for user {user_id} on server {server_id} at {new_update_feed_entry['published']} has already been sent: {already_sent}")
+        if already_sent:
+            logging.info(f"Progress update for user {user_id} on server {server_id} at {new_update_feed_entry['published']} has already been sent. Skipping.")
+            return None
+        # await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
+        book = await crud.get_book_by_title(session, new_update_feed_entry['book_title'])
+        if not book:
+            logging.warning(f"Failed to get book with title '{new_update_feed_entry['book_title']}', trying fuzzy match.")
+            book = await crud.get_book_by_title_fuzzy(session, new_update_feed_entry['book_title'])
+        if not book:
+            logging.error(f"Failed to find book '{new_update_feed_entry['book_title']}' in the database. Skipping progress update.")
+            return None
+        logging.info(f"Found book '{book}' for progress update.")
+        new_update_feed_entry['book'] = book
+        last_update = await crud.get_last_progress_update(session, server_id, user_id, book.book_id)
+        new_update_feed_entry['last_update_message_id'] = last_update.message_id if last_update else None
+        return new_update_feed_entry
                 
 async def process(bot, server_id = None):
     logging.info("Processing feeds started...")
@@ -191,7 +193,7 @@ async def process(bot, server_id = None):
                 if new_progress_update:
                     new_update_enhanced = await process_progress_update_feed(server.server_id, user.user_id, new_progress_update)
                     if not new_update_enhanced:
-                        logging.warning(f"Not able to process progress update for user {user.user_id} on server {server.server_id}.")
+                        logging.warning(f"Not able to process progress update for user {user.user_id} on server {server.server_id} or it's already been sent.")
                         continue
                     logging.info(f"Processed new progress update for user: {user.user_id} from server: {server.server_id}:")
                     logging.info(f"  - {new_update_enhanced['value']} for book: {new_update_enhanced['book'] if 'book' in new_update_enhanced else None} at {new_update_enhanced['published']}")
