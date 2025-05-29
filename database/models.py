@@ -96,6 +96,7 @@ class UserBook(Base):
     
 class ProgressUpdate(Base):
     __tablename__ = "progress_updates"
+    message_id = Column(BigInteger, primary_key=True)
     server_id = Column(BigInteger, ForeignKey("servers.server_id"))
     user_id = Column(BigInteger, ForeignKey("users.user_id"))
     value = Column(String(1024))
@@ -105,7 +106,7 @@ class ProgressUpdate(Base):
     user = relationship("User", back_populates="progress_updates")
 
     __table_args__ = (
-        PrimaryKeyConstraint('server_id', 'user_id', 'published'),
+        PrimaryKeyConstraint('message_id'),
         UniqueConstraint("server_id", "user_id", "published", name="uq_progress_update"),
     )
 

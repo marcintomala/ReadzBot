@@ -237,6 +237,10 @@ async def send_progress_update_message(bot: commands.Bot, thread_id: int, user: 
         return
     
     for update in updates:
+        if update['message_id']:
+            last_update_message = await thread.fetch_message(update['message_id'])
+            if last_update_message:
+                await last_update_message.delete()
         embed = build_progress_update_embed(update, user, discord_user, emojis)
         await thread.send(embed=embed)
 

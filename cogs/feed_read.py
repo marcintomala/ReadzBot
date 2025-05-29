@@ -143,6 +143,8 @@ async def process_progress_update_feed(server_id, user_id, update_feed_entries) 
                 new_updates.append(update)
                 await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
                 update['book'] = await crud.get_book_by_title(session, update['book_title'])
+                last_update = await crud.get_last_progress_update(session, server_id, user_id)
+                update['last_update_message_id'] = last_update.message_id if last_update else None
     
     return new_updates
                 
