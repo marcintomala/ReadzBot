@@ -86,7 +86,7 @@ class UserCommands(commands.Cog):
             logging.info(f"Error updating feeds: {e}")
             await interaction.response.send_message("There was an error updating feeds. Please try again.", ephemeral=True)
         finally:
-            await interaction.followup.send("Feed update request completed!")
+            await interaction.followup.send("Feed update request completed.", ephemeral=True)
        
     # 🛑 This command is currently deprecated in favor of `/setup_forum`
     # Uncomment down the line to re-enable text channel routing support
