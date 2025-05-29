@@ -70,6 +70,13 @@ async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
     result = await session.execute(select(Book).where(Book.title == title))
     return result.scalar_one_or_none()
 
+async def get_book_by_title_fuzzy(session: AsyncSession, title: str) -> Book | None:
+    from sqlalchemy import func
+    result = await session.execute(
+        select(Book).where(func.lower(Book.title).like(f"%{title.lower()}%"))
+    )
+    return result.scalar_one_or_none()
+
 # -----------------------
 # UserBook Functions
 # -----------------------
