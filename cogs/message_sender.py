@@ -259,7 +259,7 @@ def build_progress_update_embed(update, user: User, discord_user: discord.User, 
     page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
     
         # Optionally, get a book cover if available
-    book = update['book'] if update['book'] else None
+    book = update['book'] if 'book' in update else None
     cover_url = book.cover_image_url if book else None
     
     # Optionally, add a link to the book if available
