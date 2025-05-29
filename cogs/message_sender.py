@@ -112,6 +112,7 @@ def build_batch_feed_update_embed(entries: list[FeedEntry], emojis: tuple, user:
         for i, chunk in enumerate(chunks):
             suffix = f" ({i+1}/{len(chunks)})" if len(chunks) > 1 else ""
             embed.add_field(name=pretty_shelf + suffix, value=chunk, inline=False)
+    embed.set_author(name=user.discord_username, icon_url=discord_user.avatar)
 
     return embed
 
@@ -143,7 +144,6 @@ def build_finished_book_embed(book: FeedEntry, emojis: tuple, user: User, discor
 
     embed = discord.Embed(
         title=f'{applecat} Goodreads Update',
-        url=book.goodreads_url,
         description=description,
         color=discord.Colour.green(),
         timestamp=dt.datetime.now(dt.timezone.utc)
@@ -174,7 +174,6 @@ def build_current_book_embed(book: FeedEntry, emojis: tuple, user: User, discord
 
     embed = discord.Embed(
         title=f'{applecat} Goodreads Update',
-        url=book.goodreads_url,
         description=description,
         color=discord.Colour.purple(),
         timestamp=dt.datetime.now(dt.timezone.utc)
