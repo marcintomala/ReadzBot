@@ -208,11 +208,12 @@ async def get_all_forum_threads(session, server_id: int):
 # ------------------------
 # Progress Updates Functions
 # ------------------------
-async def save_new_update(session, message_id: int, server_id: int, user_id: int, update_value: str, published_at: datetime):
+async def save_new_update(session, message_id: int, server_id: int, user_id: int, book_id: int, update_value: str, published_at: datetime):
     new_update = ProgressUpdate(
         message_id=message_id,
         server_id=server_id,
         user_id=user_id,
+        book_id=book_id,
         value=update_value,
         published=published_at.replace(tzinfo=None) if published_at and published_at.tzinfo else published_at,
     )
@@ -229,11 +230,12 @@ async def check_sent_update(session, server_id: int, user_id: int, published_at:
     )
     return result.scalar_one_or_none() is not None
 
-async def get_last_progress_update(session, server_id: int, user_id: int) -> ProgressUpdate | None:
+async def get_last_progress_update(session, server_id: int, user_id: int, book_id: int) -> ProgressUpdate | None:
     result = await session.execute(
         select(ProgressUpdate).where(
             ProgressUpdate.server_id == server_id,
-            ProgressUpdate.user_id == user_id
+            ProgressUpdate.user_id == user_id,
+            ProgressUpdate.book_id == book_id
         ).order_by(ProgressUpdate.published.desc())
     )
     return result.scalar_one_or_none()

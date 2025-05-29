@@ -74,6 +74,7 @@ class Book(Base):
     average_rating = Column(Double)
 
     users = relationship("UserBook", back_populates="book")
+    progress_updates = relationship("ProgressUpdate", back_populates="book") 
 
 class UserBook(Base):
     __tablename__ = "user_books"
@@ -99,15 +100,17 @@ class ProgressUpdate(Base):
     message_id = Column(BigInteger, primary_key=True)
     server_id = Column(BigInteger, ForeignKey("servers.server_id"))
     user_id = Column(BigInteger, ForeignKey("users.user_id"))
+    book_id = Column(BigInteger, ForeignKey("books.book_id"))
     value = Column(String(1024))
     published = Column(DateTime)
 
     server = relationship("Server", back_populates="progress_updates")
     user = relationship("User", back_populates="progress_updates")
+    book = relationship("Book", back_populates="progress_updates")
 
     __table_args__ = (
         PrimaryKeyConstraint('message_id'),
-        UniqueConstraint("server_id", "user_id", "published", name="uq_progress_update"),
+        UniqueConstraint("server_id", "user_id", "book_id", "published", name="uq_progress_update"),
     )
 
 async def init_db():

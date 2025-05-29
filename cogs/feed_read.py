@@ -139,8 +139,9 @@ async def process_progress_update_feed(server_id, user_id, new_update_feed_entry
         already_sent = await crud.check_sent_update(session, server_id, user_id, new_update_feed_entry['published'])
         if not already_sent:
             # await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
-            new_update_feed_entry['book'] = await crud.get_book_by_title(session, new_update_feed_entry['book_title'])
-            last_update = await crud.get_last_progress_update(session, server_id, user_id)
+            book = await crud.get_book_by_title(session, new_update_feed_entry['book_title'])
+            new_update_feed_entry['book'] = book
+            last_update = await crud.get_last_progress_update(session, server_id, user_id, book.book_id)
             new_update_feed_entry['last_update_message_id'] = last_update.message_id if last_update else None
     
     return new_update_feed_entry
@@ -189,7 +190,7 @@ async def process(bot, server_id = None):
                     msg = await send_progress_update_message(bot, update_thread_id, user, new_update_enhanced)
                     if msg:
                         async with AsyncSessionLocal() as session:
-                            await crud.save_new_update(session, msg.id, server.server_id, user.user_id, new_update_enhanced['value'], new_update_enhanced['published'])
+                            await crud.save_new_update(session, msg.id, server.server_id, user.user_id, new_update_enhanced['book'].book_id, new_update_enhanced['value'], new_update_enhanced['published'])
                     else:
                         logging.error(f"Failed to send progress update message for user {user.user_id} on server {server.server_id}.")
             
