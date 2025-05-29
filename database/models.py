@@ -63,6 +63,9 @@ class User(Base):
     __table_args__ = (
         PrimaryKeyConstraint('server_id', 'user_id'),
     )
+    
+    def __str__(self):
+        return f"{self.discord_username} (ID: {self.user_id}, Server: {self.server_id})"
 
 class Book(Base):
     __tablename__ = "books"
@@ -75,6 +78,10 @@ class Book(Base):
 
     users = relationship("UserBook", back_populates="book")
     progress_updates = relationship("ProgressUpdate", back_populates="book") 
+    
+    def __str__(self):
+        return f"{self.title} by {self.author} (ID: {self.book_id})"
+    
 
 class UserBook(Base):
     __tablename__ = "user_books"
@@ -95,6 +102,9 @@ class UserBook(Base):
         UniqueConstraint("server_id", "user_id", "book_id", name="uq_user_book"),
     )
     
+    def __str__(self):
+        return f"{self.user.discord_username} - {self.book.title} ({self.shelf})"
+    
 class ProgressUpdate(Base):
     __tablename__ = "progress_updates"
     message_id = Column(BigInteger, primary_key=True)
@@ -112,6 +122,9 @@ class ProgressUpdate(Base):
         PrimaryKeyConstraint('message_id'),
         UniqueConstraint("server_id", "user_id", "book_id", "published", name="uq_progress_update"),
     )
+    
+    def __str__(self):
+        return f"Progress Update by {self.user.discord_username} for {self.book.title} on {self.published.strftime('%Y-%m-%d %H:%M:%S')}"
 
 async def init_db():
     async with engine.begin() as conn:
