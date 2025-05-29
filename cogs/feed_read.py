@@ -23,12 +23,12 @@ def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
         
     if len(entries) == 0:
         logging.warning(f"No progress updates found for user {goodreads_user_id}.")
-        return []
+        return None
         
     # Filter out duplicates and sort by date
     entries.sort(key=lambda x: x['published'], reverse=True)
     
-    return get_latest_progress_updates([entries[0]])
+    return get_latest_progress_updates(entries[0])
 
 def get_latest_progress_updates(entries: list[dict]) -> list[dict]:
     # Patterns for percentage and page-based updates
@@ -134,19 +134,16 @@ async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]) -> lis
     # Then resolve and return feed updates
     return await resolve_feed_updates(user_books, feed_entries)
 
-async def process_progress_update_feed(server_id, user_id, update_feed_entries) -> list[dict]:
-    new_updates = []
+async def process_progress_update_feed(server_id, user_id, new_update_feed_entry) -> dict:
     async with AsyncSessionLocal() as session:
-        for update in update_feed_entries:
-            already_sent = await crud.check_sent_update(session, server_id, user_id, update['published'])
-            if not already_sent:
-                new_updates.append(update)
-                await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
-                update['book'] = await crud.get_book_by_title(session, update['book_title'])
-                last_update = await crud.get_last_progress_update(session, server_id, user_id)
-                update['last_update_message_id'] = last_update.message_id if last_update else None
+        already_sent = await crud.check_sent_update(session, server_id, user_id, new_update_feed_entry['published'])
+        if not already_sent:
+            # await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
+            new_update_feed_entry['book'] = await crud.get_book_by_title(session, new_update_feed_entry['book_title'])
+            last_update = await crud.get_last_progress_update(session, server_id, user_id)
+            new_update_feed_entry['last_update_message_id'] = last_update.message_id if last_update else None
     
-    return new_updates
+    return new_update_feed_entry
                 
 async def process(bot, server_id = None):
     logging.info("Processing feeds started...")
@@ -166,6 +163,9 @@ async def process(bot, server_id = None):
             logging.info(f"Processing feeds for server {server.server_name} ({server.server_id})")
             users = await crud.get_all_users(session=session, server_id=server.server_id)
             update_thread_id = await crud.get_forum_thread(session, server.server_id, "update")
+            if not update_thread_id:
+                logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
+                continue
             if len(users) == 0:
                 logging.warning(f"No shelves found for server {server.server_id}.")
                 return
@@ -175,21 +175,23 @@ async def process(bot, server_id = None):
                 updates = await process_feed(server.server_id, user.user_id, feed_entries)
                 logging.info(f"Processed {len(feed_entries)} entries for user: {user.user_id} from server: {server.server_id}")
                 # Send updates to Discord
-                if update_thread_id and len(updates) > 0:
+                if len(updates) > 0:
                     await send_update_message(bot, update_thread_id, user, updates)
                 else:
                     logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
                     
                 # Process progress updates
-                progress_updates = read_progress_update_feed(user.goodreads_user_id)
-                new_updates = await process_progress_update_feed(server.server_id, user.user_id, progress_updates)
-                if update_thread_id and len(new_updates) > 0:
-                    logging.info(f"Processed {len(new_updates)} progress updates for user: {user.user_id} from server: {server.server_id}:")
-                    for update in new_updates:
-                        logging.info(f"  - {update['value']} for book: {update['book'].title} at {update['published']}")
-                    await send_progress_update_message(bot, update_thread_id, user, new_updates)
-                else:
-                    logging.warning(f"No update thread found for server {server.server_id}. Cannot send progress updates.")
+                new_progress_update = read_progress_update_feed(user.goodreads_user_id)
+                if new_progress_update:
+                    new_update_enhanced = await process_progress_update_feed(server.server_id, user.user_id, new_progress_update)
+                    logging.info(f"Processed new progress update for user: {user.user_id} from server: {server.server_id}:")
+                    logging.info(f"  - {new_update_enhanced['value']} for book: {new_update_enhanced['book'].title} at {new_update_enhanced['published']}")
+                    msg = await send_progress_update_message(bot, update_thread_id, user, new_update_enhanced)
+                    if msg:
+                        async with AsyncSessionLocal() as session:
+                            await crud.save_new_update(session, msg.id, server.server_id, user.user_id, new_update_enhanced['value'], new_update_enhanced['published'])
+                    else:
+                        logging.error(f"Failed to send progress update message for user {user.user_id} on server {server.server_id}.")
             
     logging.info(f'Processing feeds for all users for server {server.server_id} completed. Sending updates to Discord...')
     

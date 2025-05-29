@@ -221,7 +221,7 @@ def build_discussion_thread_embed(book_title: str, author: str, book_url: str, i
 
     return embed
 
-async def send_progress_update_message(bot: commands.Bot, thread_id: int, user: User, updates: list[dict]):
+async def send_progress_update_message(bot: commands.Bot, thread_id: int, user: User, update: dict):
     """
     Sends a reading progress update message to the appropriate 'update' thread for a given server.
     Requires the bot instance, server ID, and a parsed feed entry.
@@ -236,13 +236,12 @@ async def send_progress_update_message(bot: commands.Bot, thread_id: int, user: 
         print(f"⚠️ Thread ID {thread_id} not found in bot cache.")
         return
     
-    for update in updates:
-        if update['message_id']:
-            last_update_message = await thread.fetch_message(update['message_id'])
-            if last_update_message:
-                await last_update_message.delete()
-        embed = build_progress_update_embed(update, user, discord_user, emojis)
-        await thread.send(embed=embed)
+    if update['message_id']:
+        last_update_message = await thread.fetch_message(update['message_id'])
+        if last_update_message:
+            await last_update_message.delete()
+    embed = build_progress_update_embed(update, user, discord_user, emojis)
+    return await thread.send(embed=embed)
 
 def build_progress_update_embed(update, user: User, discord_user: discord.User, emojis: tuple = ()) -> discord.Embed:
     """
