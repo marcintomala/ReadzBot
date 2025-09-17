@@ -80,11 +80,13 @@ class UserCommands(commands.Cog):
     async def updatereadz(self, interaction: discord.Interaction):
         logging.info(f"Updating feeds for user: {interaction.user.name}")
         try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
             await process(self.bot, server_id=interaction.guild.id)
-            await interaction.response.send_message(f"Feeds update has been triggered!")
         except Exception as e:
             logging.info(f"Error updating feeds: {e}")
             await interaction.response.send_message("There was an error updating feeds. Please try again.", ephemeral=True)
+        finally:
+            await interaction.followup.send("Feed update request completed.", ephemeral=True)
        
     # 🛑 This command is currently deprecated in favor of `/setup_forum`
     # Uncomment down the line to re-enable text channel routing support

@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
-from database.models import Server, User, Book, UserBook, ServerSettings, ForumThread
+from database.models import Server, User, Book, UserBook, ServerSettings, ForumThread, ProgressUpdate
 from discord import Guild
 from datetime import datetime
 import logging
@@ -35,8 +35,8 @@ async def get_all_users(session: AsyncSession, server_id: int) -> list[User]:
 # -----------------------
 # Book Functions
 # -----------------------
-async def save_book(session: AsyncSession, server_id: int, book_id: str, title: str, author: str, cover_image_url: str, goodreads_url: str, average_rating: float) -> Book | None:
-    stmt = select(Book).where(Book.book_id == book_id, Book.server_id == server_id)
+async def save_book(session: AsyncSession, book_id: str, title: str, author: str, cover_image_url: str, goodreads_url: str, average_rating: float) -> Book | None:
+    stmt = select(Book).where(Book.book_id == book_id)
     result = await session.execute(stmt)
     book = result.scalar_one_or_none()
 
@@ -45,7 +45,6 @@ async def save_book(session: AsyncSession, server_id: int, book_id: str, title: 
 
     book = Book(
         book_id=book_id,
-        server_id=server_id,
         title=title,
         author=author,
         cover_image_url=cover_image_url,
@@ -56,16 +55,27 @@ async def save_book(session: AsyncSession, server_id: int, book_id: str, title: 
     await session.flush()
     return book
 
-async def delete_book(session: AsyncSession, server_id: int, book_id: str) -> None:
-    result = await session.execute(select(Book).where(Book.server_id == server_id, Book.book_id == book_id))
+async def delete_book(session: AsyncSession, book_id: str) -> None:
+    result = await session.execute(select(Book).where(Book.book_id == book_id))
     db_book = result.scalar_one_or_none()
     if db_book:
         await session.delete(db_book)
         await session.commit()
         
-async def get_all_books(session: AsyncSession, server_id: int) -> list[Book]:
-    result = await session.execute(select(Book).where(Book.server_id == server_id))
+async def get_all_books(session: AsyncSession) -> list[Book]:
+    result = await session.execute(select(Book))
     return result.scalars().all()
+
+async def get_book_by_title(session: AsyncSession, title: str) -> Book | None:
+    result = await session.execute(select(Book).where(Book.title == title))
+    return result.scalar_one_or_none()
+
+async def get_book_by_title_fuzzy(session: AsyncSession, title: str) -> Book | None:
+    from sqlalchemy import func
+    result = await session.execute(
+        select(Book).where(func.lower(Book.title).like(f"%{title.lower()}%"))
+    )
+    return result.scalar_one_or_none()
 
 # -----------------------
 # UserBook Functions
@@ -200,3 +210,39 @@ async def get_all_forum_threads(session, server_id: int):
         )
     )
     return {row.thread_type: row.thread_id for row in result.fetchall()}
+
+
+# ------------------------
+# Progress Updates Functions
+# ------------------------
+async def save_new_update(session, message_id: int, server_id: int, user_id: int, book_id: int, update_value: str, published_at: datetime):
+    new_update = ProgressUpdate(
+        message_id=message_id,
+        server_id=server_id,
+        user_id=user_id,
+        book_id=book_id,
+        value=update_value,
+        published=published_at.replace(tzinfo=None) if published_at and published_at.tzinfo else published_at,
+    )
+    session.add(new_update)
+    await session.commit()
+    
+async def check_sent_update(session, server_id: int, user_id: int, published_at: datetime) -> bool:
+    result = await session.execute(
+        select(ProgressUpdate).where(
+            ProgressUpdate.server_id == server_id,
+            ProgressUpdate.user_id == user_id,
+            ProgressUpdate.published == published_at.replace(tzinfo=None) if published_at and published_at.tzinfo else published_at
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+async def get_last_progress_update(session, server_id: int, user_id: int, book_id: int) -> ProgressUpdate | None:
+    result = await session.execute(
+        select(ProgressUpdate).where(
+            ProgressUpdate.server_id == server_id,
+            ProgressUpdate.user_id == user_id,
+            ProgressUpdate.book_id == book_id
+        ).order_by(ProgressUpdate.published.desc())
+    )
+    return result.scalars.first()

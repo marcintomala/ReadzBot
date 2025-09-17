@@ -3,11 +3,46 @@ from database.connection import AsyncSessionLocal
 import database.crud as crud
 from database.models import UserBook
 from datetime import datetime
-from cogs.message_sender import send_update_message
+from cogs.message_sender import send_update_message, send_progress_update_message
 from cogs.FeedEntry import FeedEntry
 import logging
+from dateutil import parser as date_parser
+import re
 
+def read_progress_update_feed(goodreads_user_id: str) -> list[dict]:
+    RSS_URL = f'https://www.goodreads.com/user_status/list/{goodreads_user_id}?format=rss'
+    feed = fp.parse(RSS_URL)
+    entries = []
+    
+    for entry in feed.entries:
+        entry_dict = {
+            'value': entry.title,
+            'published': date_parser.parse(entry.published),
+        }
+        entries.append(entry_dict)
+        
+    if len(entries) == 0:
+        logging.warning(f"No progress updates found for user {goodreads_user_id}.")
+        return None
+        
+    # Filter out duplicates and sort by date
+    entries.sort(key=lambda x: x['published'], reverse=True)
+    
+    return get_latest_progress_updates(entries[0])
 
+def get_latest_progress_updates(entry: dict) -> dict:
+    # Patterns for percentage and page-based updates
+    percent_pattern = re.compile(r"(.+?) is (\d+)% done with (.+)")
+    page_pattern = re.compile(r"(.+?) is on page (\d+) of (\d+) of (.+)")
+    
+    if percent_match := percent_pattern.match(entry['value']):
+        user_name, percent, book_title = percent_match.groups()
+    elif page_match := page_pattern.match(entry['value']):
+        user_name, page, total, book_title = page_match.groups()
+
+    logging.info(f"Processing progress update for book: {book_title}")
+    entry['book_title'] = book_title
+    return entry
 
 def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     RSS_URL = f'https://www.goodreads.com/review/list_rss/{goodreads_user_id}?shelf=all'
@@ -15,12 +50,17 @@ def read_feed(goodreads_user_id: str) -> list[FeedEntry]:
     entries = []
 
     for entry in feed.entries:
-        raw_shelf = entry.get("user_shelves", "").strip().lower()
+        raw_shelves = entry.get("user_shelves", "").strip().lower()
         raw_review = entry.get("user_review", "").strip()
         raw_rating = int(entry.get("user_rating", "0").strip())
         
-        if raw_shelf in ['read', 'currently-reading', 'to-read']:
-            resolved_shelf = raw_shelf
+        shelves_to_track = ["read", "currently-reading", "to-read"]
+        split_shelves = raw_shelves.split(",") if raw_shelves else []
+        
+        if any(shelf in split_shelves for shelf in shelves_to_track):
+            resolved_shelf = "read" if "read" in split_shelves else \
+                "currently-reading" if "currently-reading" in split_shelves else \
+                "to-read" if "to-read" in split_shelves else None
         elif raw_review or raw_rating > 0:
             resolved_shelf = "read"
         else:
@@ -55,7 +95,7 @@ async def cleanup(server_id, user_id, user_books: list[UserBook], feed_entries: 
                 await crud.delete_user_book(session, server_id, user_id, user_book.book_id)
     return user_books
                 
-async def resolve_feed_updates(user_books: list[UserBook], feed_entries: list[FeedEntry]):
+async def resolve_feed_updates(user_books: list[UserBook], feed_entries: list[FeedEntry]) -> list[FeedEntry]:
     # Create a mapping of (book_id, shelf) -> rating for books in the database
     db_book_info = {(user_book.book_id, user_book.shelf): user_book.rating for user_book in user_books}
     # Find entries in the feed that are new, have a different shelf, or rating has changed
@@ -75,10 +115,10 @@ async def save_entries(server_id, user_id, feed_entries: list[FeedEntry]):
         for entry in feed_entries:
             logging.info(f"Processing entry: {entry.title} by {entry.author} for user: {user_id} on shelf: {entry.shelf}")
         
-            await crud.save_book(session, server_id, entry.book_id, entry.title, entry.author, entry.cover_image_url, entry.goodreads_url, entry.average_rating)
+            await crud.save_book(session, entry.book_id, entry.title, entry.author, entry.cover_image_url, entry.goodreads_url, entry.average_rating)
             await crud.save_user_book(session, server_id, user_id, entry.book_id, entry.shelf, entry.rating, entry.review, entry.published)
     
-async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]):
+async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]) -> list[FeedEntry]:
     # First get all the books for the user
     async with AsyncSessionLocal() as session:
         user_books = await crud.get_all_user_books(session, server_id, user_id)
@@ -91,6 +131,27 @@ async def process_feed(server_id, user_id, feed_entries: list[FeedEntry]):
     
     # Then resolve and return feed updates
     return await resolve_feed_updates(user_books, feed_entries)
+
+async def process_progress_update_feed(server_id, user_id, new_update_feed_entry) -> dict:
+    async with AsyncSessionLocal() as session:
+        already_sent = await crud.check_sent_update(session, server_id, user_id, new_update_feed_entry['published'])
+        logging.info(f"Checking if progress update for user {user_id} on server {server_id} at {new_update_feed_entry['published']} has already been sent: {already_sent}")
+        if already_sent:
+            logging.info(f"Progress update for user {user_id} on server {server_id} at {new_update_feed_entry['published']} has already been sent. Skipping.")
+            return None
+        # await crud.save_new_update(session, server_id, user_id, update['value'], update['published'])
+        book = await crud.get_book_by_title(session, new_update_feed_entry['book_title'])
+        if not book:
+            logging.warning(f"Failed to get book with title '{new_update_feed_entry['book_title']}', trying fuzzy match.")
+            book = await crud.get_book_by_title_fuzzy(session, new_update_feed_entry['book_title'])
+        if not book:
+            logging.error(f"Failed to find book '{new_update_feed_entry['book_title']}' in the database. Skipping progress update.")
+            return None
+        logging.info(f"Found book '{book}' for progress update.")
+        new_update_feed_entry['book'] = book
+        last_update = await crud.get_last_progress_update(session, server_id, user_id, book.book_id)
+        new_update_feed_entry['last_update_message_id'] = last_update.message_id if last_update else None
+        return new_update_feed_entry
                 
 async def process(bot, server_id = None):
     logging.info("Processing feeds started...")
@@ -110,6 +171,9 @@ async def process(bot, server_id = None):
             logging.info(f"Processing feeds for server {server.server_name} ({server.server_id})")
             users = await crud.get_all_users(session=session, server_id=server.server_id)
             update_thread_id = await crud.get_forum_thread(session, server.server_id, "update")
+            if not update_thread_id:
+                logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
+                continue
             if len(users) == 0:
                 logging.warning(f"No shelves found for server {server.server_id}.")
                 return
@@ -119,9 +183,26 @@ async def process(bot, server_id = None):
                 updates = await process_feed(server.server_id, user.user_id, feed_entries)
                 logging.info(f"Processed {len(feed_entries)} entries for user: {user.user_id} from server: {server.server_id}")
                 # Send updates to Discord
-                if update_thread_id and len(updates) > 0:
-                    await send_update_message(bot, update_thread_id, user.user_id, updates)
+                if len(updates) > 0:
+                    await send_update_message(bot, update_thread_id, user, updates)
                 else:
                     logging.warning(f"No update thread found for server {server.server_id}. Cannot send updates.")
+                    
+                # Process progress updates
+                new_progress_update = read_progress_update_feed(user.goodreads_user_id)
+                if new_progress_update:
+                    new_update_enhanced = await process_progress_update_feed(server.server_id, user.user_id, new_progress_update)
+                    if not new_update_enhanced:
+                        logging.warning(f"Not able to process progress update for user {user.user_id} on server {server.server_id} or it's already been sent.")
+                        continue
+                    logging.info(f"Processed new progress update for user: {user.user_id} from server: {server.server_id}:")
+                    logging.info(f"  - {new_update_enhanced['value']} for book: {new_update_enhanced['book'] if 'book' in new_update_enhanced else None} at {new_update_enhanced['published']}")
+                    msg = await send_progress_update_message(bot, update_thread_id, user, new_update_enhanced)
+                    if msg:
+                        async with AsyncSessionLocal() as session:
+                            await crud.save_new_update(session, msg.id, server.server_id, user.user_id, new_update_enhanced['book'].book_id, new_update_enhanced['value'], new_update_enhanced['published'])
+                    else:
+                        logging.error(f"Failed to send progress update message for user {user.user_id} on server {server.server_id}.")
+            
     logging.info(f'Processing feeds for all users for server {server.server_id} completed. Sending updates to Discord...')
     
