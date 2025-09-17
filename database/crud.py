@@ -245,4 +245,4 @@ async def get_last_progress_update(session, server_id: int, user_id: int, book_i
             ProgressUpdate.book_id == book_id
         ).order_by(ProgressUpdate.published.desc())
     )
-    return result.scalars.first()
+    return result.scalars().first()
